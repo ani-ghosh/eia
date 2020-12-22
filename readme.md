@@ -22,7 +22,10 @@
 |Resource use efficiency |  Nitrogen use efficiency from Zhang et al., (2015)  |  [NUE](http://www.nature.com/doifinder/10.1038/nature15743) | Country-level estimate of NUE |
 | Global Yield Gap Atlas  |  Yield gap by country | [GYGA](http://www.yieldgap.org/web/guest/download_data) | Additional data on climate zonation and technology interpolation [available]  |
 | Global cropland area and production  |   Spatial Production Allocation Model  | [MapSPAM](https://www.mapspam.info/data/) | Raster data for 42 major crops  |
-| Childhood overweight and wasting   |   Local patterns of childhood overweight and wasting in low- and middle-income countries between 2000 and 2017  | [malnutirtion](https://www.nature.com/articles/s41591-020-0807-6) | Poverty indicator  |
+| Childhood overweight and wasting   |   Local patterns of childhood overweight and wasting in low- and middle-income countries between 2000 and 2017  | [LBD Double Burden of Malnutrition](https://www.nature.com/articles/s41591-020-0807-6) | Poverty indicator  |
+| Population health | 37 of the 50 health-related SDG indicators over the period 1990–2016 for 188 countries  | [GBD](https://www.thelancet.com/journals/lancet/article/PIIS0140-6736(17)32336-X/fulltext) | Poverty indicator|
+| Conflict | The Armed Conflict Location & Event Data  | [ACLED](https://acleddata.com/#/dashboard) | Crisis |
+
 
 ## Analysis
 
