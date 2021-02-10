@@ -1,0 +1,156 @@
+---
+title: "Interactive tool for prioritization and targeting workflow for the Excellence in Agronomy (EiA) platform"
+runtime: shiny
+output: 
+  flexdashboard::flex_dashboard:
+  orientation: row
+  vertical_layout: scroll
+---
+
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(shiny)
+library(tidyverse)
+library(sf)
+library(leaflet)
+library(DT)
+
+pdf(NULL)
+
+# # http://benhay.es/posts/building-shiny-dashboards/
+map <- st_read("eastafrica_kpi_summary.geojson")
+df <- st_drop_geometry(map)
+```
+
+
+Sidebar {.sidebar data-width=400}
+=====================================
+
+#### **Individual Level Filters**
+
+```{r level_inputs}
+
+leveloptions <- sort(c("Level 1: Importance", "Level 2: Urgency", "Level 3: Enabler"))
+
+checkboxGroupInput("level_checkbox",
+                   "Level:",
+                   choices = leveloptions,
+                   selected = leveloptions[1]
+                   )
+```
+
+<hr/>
+
+#### **KPI selector: Level 1**
+
+```{r level_1_KPI}
+
+# rural population
+popmin <- floor(min(df$population_sum, na.rm = TRUE))
+popmax <- ceiling(max(df$population_sum, na.rm = TRUE))
+
+sliderInput("rural_pop_slider",
+            "Rural population:",
+            min = popmin,
+            max = popmax,
+            value = c(popmin, popmax),
+            step = 1,
+            sep = NULL
+          )
+
+# agriculture land availability
+aglandmin <- floor(min(df$croparea_sum, na.rm = TRUE))
+aglandmax <- ceiling(max(df$croparea_sum, na.rm = TRUE))
+
+sliderInput("ag_land_slider",
+            "Agriculture land:",
+            min = aglandmin,
+            max = aglandmax,
+            value = c(aglandmin, aglandmax),
+            step = 1,
+            sep = NULL
+          )
+```
+
+#### **KPI selector: Level 2**
+
+```{r level_2_KPI}
+
+# rural population
+yieldgapmin <- floor(min(df$yieldgap_maize_yieldgap, na.rm = TRUE))
+yieldgapmax <- ceiling(max(df$yieldgap_maize_yieldgap, na.rm = TRUE))
+
+sliderInput("yield_gap_slider",
+            "Yield gap:",
+            min = yieldgapmin,
+            max = yieldgapmax,
+            value = c(yieldgapmin, yieldgapmax),
+            step = 0.5
+          )
+
+# agriculture land availability
+nppmin <- floor(min(df$npp_mean_trend, na.rm = TRUE))
+nppmax <- ceiling(max(df$npp_mean_trend, na.rm = TRUE))
+
+sliderInput("npp_trend_slider",
+            "NPP trend:",
+            min = nppmin,
+            max = nppmax,
+            value = c(nppmin, nppmax),
+            step = 1
+          )
+```
+
+
+Mapping priority areas
+=====================================
+
+```{r leaflet_map}
+  renderLeaflet({
+  leaflet() %>%
+    addTiles() %>%
+    setView(lat = 0, lng = 30, zoom = 4) %>%
+    # Add two tiles
+    addProviderTiles("Esri.WorldImagery", group="ESRI WorldImagery") %>%
+    # Add the control widget
+    addLayersControl(overlayGroups = c("L1 Map of important areas","L2 Map of urgent areas",
+                                       "L3 Map of enable areas", "Composite score maps") , 
+                     baseGroups = c("ESRI WorldImagery"),
+                     options = layersControlOptions(collapsed = FALSE))  
+})
+```
+
+
+Explore/download data
+=====================================
+
+```{r render_datatable}
+DT::renderDataTable({
+  dat <- df %>%
+    select(country.x, DESCRIPTIO, population_sum, croparea_sum, npp_mean_trend, yieldgap_maize_yieldgap)
+  
+DT::datatable(dat,
+                rownames = FALSE,
+                extensions = 'Buttons',
+                options = list(pageLength = 10, 
+                               scrollX = T,
+                               filter = "top",
+                               dom = 'Bfrtip',
+                               buttons = c('csv', 'copy', 'print')
+
+                )) %>%
+    formatStyle(columns = seq(1, 21, 1), fontSize = "9pt")
+})
+```
+
+
+###
+
+Background
+=====================================
+
+
+
+###
+

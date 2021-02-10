@@ -37,9 +37,22 @@ nue <- read.csv("outdir/rue/nue_cleaned_trend.csv", stringsAsFactors = FALSE)
 ddn <- merge(dd, nue, by = "country", all.x = TRUE)
 
 # merge all summary with spatial layer
-dcfs <- merge(cfs, ddn, by = "uid", all.x = TRUE)
+dcfs <- merge(cfs, ddn)
+# View(dcfs@data)
 shapefile(dcfs, "outdir/all_kpi_summary.shp", overwrite = TRUE)
 
 # save as geojson
 dsf <- st_as_sf(dcfs)
 st_write(dsf, "outdir/all_kpi_summary.geojson", delete_layer = TRUE)
+
+
+dsf <- st_read("outdir/all_kpi_summary.geojson")
+names(dsf)
+
+
+# east africa subset for testing
+# library(sf)
+# cc <- c("Burundi","Ethiopia", "Kenya", "Malawi","Somalia","Rwanda","Uganda","Tanzania")
+# map <- st_read("all_kpi_summary.geojson")
+# map <- map[map$country.x %in% cc,]
+# st_write(map, "eastafrica_kpi_summary.geojson")

@@ -8,8 +8,11 @@ setwd(dir)
 gee <- read.csv("outdir/gee/eia_kpi_gee.csv", stringsAsFactors = FALSE)
 
 # columns to keep except npp
-c1 <- c("uid","country","iso3","area_sqkm","area_pct","croparea_sum","orc_mean_mean","ph_mean_mean","population_sum")
-d1 <- subset(gee, select = c1)
+gee$population_sum <- round(gee$population_sum, 0) 
+gee$croparea_sum <- round(gee$croparea_sum*0.01, 0) # convert to sqkm, now in ha
+gee$rural_pop_density <- round(gee$population_sum/gee$croparea_sum, 2) 
+c1 <- c("uid","country","iso3","area_sqkm","area_pct","croparea_sum","orc_mean_mean","ph_mean_mean","population_sum", "rural_pop_density")
+d1 <- gee[, c1]
 # calculate population_sum/croparea_sum
 
 # npp trend
