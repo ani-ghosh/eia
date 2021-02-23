@@ -16,10 +16,11 @@ library(sf)
 library(leaflet)
 library(DT)
 
+
 pdf(NULL)
 
 # # http://benhay.es/posts/building-shiny-dashboards/
-map <- st_read("eastafrica_kpi_summary.geojson")
+map <- readRDS("level1_KPI.rds")
 df <- st_drop_geometry(map)
 ```
 
@@ -46,12 +47,12 @@ checkboxGroupInput("level_checkbox",
 
 ```{r level_1_KPI}
 
-# rural population
-popmin <- floor(min(df$population_sum, na.rm = TRUE))
-popmax <- ceiling(max(df$population_sum, na.rm = TRUE))
+# rural population density
+popmin <- floor(min(df$rural_pop_density_sq_km, na.rm = TRUE))
+popmax <- ceiling(max(df$rural_pop_density_sq_km, na.rm = TRUE))
 
 sliderInput("rural_pop_slider",
-            "Rural population:",
+            "Rural population density/sq km:",
             min = popmin,
             max = popmax,
             value = c(popmin, popmax),
@@ -60,65 +61,93 @@ sliderInput("rural_pop_slider",
           )
 
 # agriculture land availability
-aglandmin <- floor(min(df$croparea_sum, na.rm = TRUE))
-aglandmax <- ceiling(max(df$croparea_sum, na.rm = TRUE))
+aglandmin <- floor(min(df$cropland_ha_capita, na.rm = TRUE))
+aglandmax <- ceiling(max(df$cropland_ha_capita, na.rm = TRUE))
 
 sliderInput("ag_land_slider",
-            "Agriculture land:",
+            "Agriculture land (ha) per capita:",
             min = aglandmin,
             max = aglandmax,
             value = c(aglandmin, aglandmax),
-            step = 1,
+            step = 0.5,
             sep = NULL
           )
 ```
 
 #### **KPI selector: Level 2**
 
-```{r level_2_KPI}
+#### **KPI selector: Level 3**
 
-# rural population
-yieldgapmin <- floor(min(df$yieldgap_maize_yieldgap, na.rm = TRUE))
-yieldgapmax <- ceiling(max(df$yieldgap_maize_yieldgap, na.rm = TRUE))
-
-sliderInput("yield_gap_slider",
-            "Yield gap:",
-            min = yieldgapmin,
-            max = yieldgapmax,
-            value = c(yieldgapmin, yieldgapmax),
-            step = 0.5
-          )
-
-# agriculture land availability
-nppmin <- floor(min(df$npp_mean_trend, na.rm = TRUE))
-nppmax <- ceiling(max(df$npp_mean_trend, na.rm = TRUE))
-
-sliderInput("npp_trend_slider",
-            "NPP trend:",
-            min = nppmin,
-            max = nppmax,
-            value = c(nppmin, nppmax),
-            step = 1
-          )
-```
-
+#### **KPI selector: Level 4**
 
 Mapping priority areas
 =====================================
 
 ```{r leaflet_map}
-  renderLeaflet({
-  leaflet() %>%
-    addTiles() %>%
-    setView(lat = 0, lng = 30, zoom = 4) %>%
-    # Add two tiles
-    addProviderTiles("Esri.WorldImagery", group="ESRI WorldImagery") %>%
-    # Add the control widget
-    addLayersControl(overlayGroups = c("L1 Map of important areas","L2 Map of urgent areas",
-                                       "L3 Map of enable areas", "Composite score maps") , 
-                     baseGroups = c("ESRI WorldImagery"),
-                     options = layersControlOptions(collapsed = FALSE))  
+
+pal <- colorBin(
+  palette = "viridis", domain = map$rural_pop_density_sq_km,
+  bins = seq(popmin, popmax, by = 50)
+)
+
+map$labels <- paste0(
+  "<strong> Country: </strong> ",
+  map$NAME_0, "<br/> ",
+  "<strong> Farming system: </strong> ",
+  map$frm_sys, "<br/> ",
+  "<strong> Rural Population Density: </strong> ",
+  map$rural_pop_density_sq_km, "<br/> ",
+  "<strong> Cropland (ha)/capita: </strong> ",
+  map$cropland_ha_capita, "<br/> "
+) %>%
+  lapply(htmltools::HTML)
+
+mapFiltered <- reactive({
+  k1 <- which(map$rural_pop_density_sq_km >= input$rural_pop_slider[1] &
+                           map$rural_pop_density_sq_km <= input$rural_pop_slider[2])
+  k2 <- which(map$cropland_ha_capita >= input$ag_land_slider[1] &
+                           map$cropland_ha_capita <= input$ag_land_slider[2])
+  map[sort(unique(c(k1, k2))), ]
 })
+
+
+renderLeaflet({
+  if(nrow(mapFiltered()) == 0){
+  return(NULL)
+  }
+  
+  leaflet(data=mapFiltered()) %>%
+  addTiles() %>%
+  setView(lng = 0, lat = 30, zoom = 3) %>%
+  addPolygons(
+    fillColor = ~ pal(cropland_ha_capita),
+    color = "#444444", weight = 1, smoothFactor = 0.5,
+    fillOpacity = 0.5,
+    label = ~labels,
+    highlight = highlightOptions(
+      color = "white", weight = 2,
+      bringToFront = TRUE
+    )
+  ) %>%
+  leaflet::addLegend(
+    pal = pal, values = ~rural_pop_density_sq_km,
+    opacity = 0.7, title = "rural_pop_density_sq_km"
+  )
+
+})
+
+# renderLeaflet({
+#   leaflet() %>%
+#     addTiles() %>%
+#     setView(lat = 0, lng = 30, zoom = 4) %>%
+#     # Add two tiles
+#     addProviderTiles("Esri.WorldImagery", group="ESRI WorldImagery") %>%
+#     # Add the control widget
+#     addLayersControl(overlayGroups = c("L1 Map of important areas","L2 Map of urgent areas",
+#                                        "L3 Map of enable areas", "Composite score maps") , 
+#                      baseGroups = c("ESRI WorldImagery"),
+#                      options = layersControlOptions(collapsed = FALSE))  
+# })
 ```
 
 
@@ -127,8 +156,13 @@ Explore/download data
 
 ```{r render_datatable}
 DT::renderDataTable({
+  df <- st_drop_geometry(mapFiltered())
   dat <- df %>%
-    select(country.x, DESCRIPTIO, population_sum, croparea_sum, npp_mean_trend, yieldgap_maize_yieldgap)
+    select(NAME_0, frm_sys, area_sq_km, rural_pop, cropland_area_ha, rural_pop_density_sq_km, cropland_ha_capita)
+  colnames(dat) <- c("Country", "Farming System", "Area of farming system/country",
+           "Total rural population", "Cropland area (in ha)",
+           "Rural population density/sqkm",
+           "Cropland availability (ha)/per capita")
   
 DT::datatable(dat,
                 rownames = FALSE,

@@ -20,10 +20,12 @@ getPopByUnit <- function(s, vr, pop, cr){
   rc1 <- classify(r2, rclmat, include.lowest=TRUE)
   
   # combine all information  
-  dd <- data.frame(as.data.frame(vs), rural_pop = pp$sum, cropland_area_ha = area(rc1)*0.0001)
-  dd$rural_pop_density_sq_km <- dd$rural_pop/dd$area_sq_km
-  dd$cropland_ha_capita <- dd$cropland_area_ha/dd$rural_pop
-  return(dd)
+  dd <- data.frame(as.data.frame(vs), rural_pop = round(pp$sum), 
+                   cropland_area_ha = round(area(rc1)*0.0001))
+  dd$rural_pop_density_sq_km <- round(dd$rural_pop/dd$area_sq_km)
+  dd$cropland_ha_capita <- round(dd$cropland_area_ha/dd$rural_pop, 3)
+  vv <- merge(vs, dd)
+  return(vv)
 }
 
 # input data
@@ -47,14 +49,10 @@ fsv <- vect(fsv)
 
 # process for all polygons
 vv <- lapply(1:nrow(fsv), getPopByUnit, fsv, wpop, cr)
-vd <- data.table::rbindlist(vv, fill=TRUE)
-write.csv(vd, "app/level1_KPI.csv", row.names = FALSE)
-
-# merge back to vector and save as geojson
-fsvd <- merge(fsv, vd, by = c("GID_0","frm_sys","NAME_0", "area_sq_km"))
-sfd <- sf::st_as_sf(as.data.frame(fsvd, geom=TRUE), wkt="geometry", crs=crs(fsvd))
-sf::st_write(sfd, "app/level1_KPI.geojson", delete_layer = TRUE)
-
+vd <- do.call(c, vv)
+sfd <- sf::st_as_sf(as.data.frame(vd, geom=TRUE), wkt="geometry", crs=crs(vd))
+# sf::st_write(sfd, "app/level1_KPI.geojson")
+saveRDS(sfd, "app/level1_KPI.rds" )
 
 
 # # individual 
