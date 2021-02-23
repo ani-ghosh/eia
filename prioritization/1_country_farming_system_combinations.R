@@ -3,11 +3,10 @@ library(raster)
 library(readxl)
 
 # country boundaries
-dir <- "G:\\My Drive\\work\\ciat\\eia\\analysis"
-setwd(dir)
+datadir <- "G:\\My Drive\\work\\ciat\\eia\\analysis"
 
 # LMIC country and codes
-cc <- read_excel("input/general/CLASS_worldbank.xls", sheet = "Groups")
+cc <- read_excel(file.path(datadir, "input/general/CLASS_worldbank.xls"), sheet = "Groups")
 lmic <- cc[cc$GroupName == "Low & middle income",]
 
 # Kosovo ISO3 in GADM and Worldbank are different
@@ -17,29 +16,45 @@ lmic <- lmic[lmic$CountryCode!="RUS",]
 
 # download all these country boundary GADM 0 level
 lapply(lmic$CountryCode,
-       function(iso){getData("GADM", country=iso, level=0, path="input/boundary/country");return(iso)})
+       function(iso){getData("GADM", country=iso, level=0, path=file.path(datadir,"input/boundary/country"));return(iso)})
 
 # farming system boundary
-fs <- shapefile("input/general/dixon_farming_system/FarmingSystem_Global.shp")
+vdir <- "G:\\My Drive\\work\\ciat\\cg-prioritization"
+fs <- shapefile(file.path(vdir, "vector/farming_system_region_combined.shp"))
+fs <- fs[, c("CG_REG","frm_sys","year")]
 
 # area/overlap of each country with farming systems; fractional area of each systems 
 getFSISOcom <- function(iso, fs){
   cat("Processing ", iso, "\n")
-  v <- getData("GADM", country=iso, level=0, path="input/boundary/country")
+  v <- getData("GADM", country=iso, level=0, path=file.path(datadir,"input/boundary/country"))
   fsv <- crop(fs, v)
   if (!is.null(fsv)){
     a <- area(fsv)/(1000*1000)
-    d <- data.frame(country=v$NAME_0, farming_system=fsv$DESCRIPTIO, gis_code = fsv$GIS_CODE1,
-                    area_sqkm = a, area_pct = round(a/sum(a), 2)*100)
-    return(d)
+    fsv@data <- data.frame(fsv@data, v@data, area_sqkm = a, area_pct = round(a/sum(a), 2)*100)
+    return(fsv)
   }
 }
 
 dd <- lapply(lmic$CountryCode, getFSISOcom, fs)
-ddf <- do.call(rbind, dd)
+vv <- dd
+vv[sapply(vv, is.null)] <- NULL
+vv <- do.call(rbind, vv)
+shapefile(vv, file.path(datadir, "input/boundary/farming_system_country_combined_all.shp"))
 
+# remove small systems
+vv <- vv[vv$area_pct >= 5, ]
+# aggregate by country and farming system
+vv <- aggregate(vv, by = c("GID_0","frm_sys","NAME_0"), dissolve = TRUE)
+vv@data <- data.frame(vv@data, area_sq_km = area(vv)/(1000*1000))
+shapefile(vv, file.path(datadir, "input/boundary/farming_system_country_combined_filtered.shp"))
+
+
+
+
+
+######################################################################################################
 # merge country code back
-ddf <- merge(lmic[,c("CountryCode", "CountryName")], ddf, 
+ddf <- merge(lmic[,c("CountryCode", "CountryName")], ddf,
              by.x = "CountryName", by.y = "country", all.y=TRUE)
 
 # remove small systems
