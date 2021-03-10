@@ -3,20 +3,19 @@ library(raster)
 library(sf)
 
 # working directory
-dir <- "G:\\My Drive\\work\\ciat\\eia\\analysis"
-setwd(dir)
+datadir <- "G:\\My Drive\\work\\ciat\\eia\\analysis"
 
 # country-farming-system boundary
-cfs <- shapefile("input/boundary/country/country_farming_system.shp")
+cfs <- shapefile(file.path(datadir, "input/boundary/country/country_farming_system.shp"))
 
 # summary
-estat <- read.csv("outdir/earthstat/yield_summary_earthstat.csv", stringsAsFactors = FALSE)
-gstat <- read.csv("outdir/gee/eia_kpi_gee_clean.csv", stringsAsFactors = FALSE)
+estat <- read.csv(file.path(datadir, "outdir/earthstat/yield_summary_earthstat.csv"), stringsAsFactors = FALSE)
+gstat <- read.csv(file.path(datadir, "outdir/gee/eia_kpi_gee_clean.csv"), stringsAsFactors = FALSE)
 # combine
 dd <- merge(gstat, estat, by = "uid")
 
 # nitrogen use efficiency
-nue <- read.csv("outdir/rue/nue_cleaned_trend.csv", stringsAsFactors = FALSE)
+nue <- read.csv(file.path(datadir, "outdir/rue/nue_cleaned_trend.csv"), stringsAsFactors = FALSE)
 
 # country names will not match
 # clist <- unique(dd$country)
@@ -39,11 +38,11 @@ ddn <- merge(dd, nue, by = "country", all.x = TRUE)
 # merge all summary with spatial layer
 dcfs <- merge(cfs, ddn)
 # View(dcfs@data)
-shapefile(dcfs, "outdir/all_kpi_summary.shp", overwrite = TRUE)
+shapefile(dcfs, file.path(datadir, "outdir/all_kpi_summary.shp"), overwrite = TRUE)
 
 # save as geojson
 dsf <- st_as_sf(dcfs)
-st_write(dsf, "outdir/all_kpi_summary.geojson", delete_layer = TRUE)
+st_write(dsf, file.path(datadir, "outdir/all_kpi_summary.geojson"), delete_layer = TRUE)
 
 
 dsf <- st_read("outdir/all_kpi_summary.geojson")

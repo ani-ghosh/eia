@@ -1,8 +1,8 @@
 # resource use efficiency trend
 
 # working directory
-dir <- "G:\\My Drive\\work\\ciat\\eia\\analysis"
-setwd(dir)
+datadir <- "G:\\My Drive\\work\\ciat\\eia\\analysis"
+
 
 # trend function
 getSlope <- function(d){
@@ -25,4 +25,4 @@ ns <- getSlope(dnue)
 clist <- nue[,1, drop = TRUE]
 clist <- gsub("\\'", "", clist)
 ns <- data.frame(country = clist, nue_trend = ns, stringsAsFactors = FALSE)
-write.csv(ns, "outdir/rue/nue_cleaned_trend.csv", row.names = FALSE)
+write.csv(ns, file.path(datadir,"outdir/rue/nue_cleaned_trend.csv", row.names = FALSE))

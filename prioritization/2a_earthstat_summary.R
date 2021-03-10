@@ -16,8 +16,8 @@ getEarthstatSummary <- function(i, cfs, rr){
 
 ######################################################################################
 # working directory
-dir <- "G:\\My Drive\\work\\ciat\\eia\\analysis"
-setwd(dir)
+datadir <- "G:\\My Drive\\work\\ciat\\eia\\analysis"
+
 
 ######################################################################################
 # boundaries
@@ -26,7 +26,7 @@ cfs <- vect("input/boundary/country/country_farming_system.shp")
 ######################################################################################
 # all raster
 # yield trends
-yldtrend <- list.files("input/earthstat/YieldTrends_Geotiff/", 
+yldtrend <- list.files(file.path(datadir, "input/earthstat/YieldTrends_Geotiff/"), 
                        pattern = glob2rx("percentage_*.tif"), full.names = TRUE)
 yldtrend <- rast(yldtrend)
 names(yldtrend) <- paste0("yieldtrend_", names(yldtrend))
