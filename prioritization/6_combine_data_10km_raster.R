@@ -67,4 +67,4 @@ dds$maize_yieldgap_scaled <- dds$maize_yieldgap/dds$maize_yieldpotential
 dds$rice_yieldgap_scaled <- dds$rice_yieldgap/dds$rice_yieldpotential
 dds$wheat_yieldgap1_scaled <- dds$wheat_yieldgap1/dds$wheat_yieldpotential
 
-write.csv(dds, file.path(datadir, "outdir/all_raster/vars_table_10km.csv"), row.names = FALSE)
+data.table::fwrite(dds, file.path(datadir, "outdir/all_raster/vars_table_10km.csv"))

@@ -18,7 +18,11 @@ esa <- data.frame(cgregion = "ESA", ISO3 = c("TZA","KEN","SSD","ERI","ETH","SOM"
 cwana <- data.frame(cgregion = "CWANA", ISO3 = c("SDN","EGY","YEM","MAR","ESH","DZA","TUN","LBY","SAU","OMN","ARE","QAT","KWT","IRQ",
            "IRN","JOR","LBN","SYR","ISR","PSE","TUR","GEO","AZE","ARM","TKM","UZB","KGZ","KAZ",
            "TJK","AFG"))
-cgregions <- rbind(lac, wca, esa, cwana)
+
+sa <- data.frame(cgregion = "SA", ISO3 = c("IND","PAK","BGD","NPL","LKA","BTN"))
+sea <- data.frame(cgregion = "SAE", ISO3 = c("CHN","MMR","THA","LAO","VNM","KHM","IDN","PHL","MYS","TLS","PNG","BRN"))
+
+cgregions <- rbind(lac, wca, esa, cwana, sa, sea)
 
 # vector boundaries
 vdir <- "G:\\My Drive\\work\\ciat\\cg-prioritization"
