@@ -49,19 +49,39 @@ names(yldvar) <- paste0("yieldvariability_", names(yldvar))
 rr1 <- c(r1, r2, r3, npp, ph, sh, yldgap, yldpot, yldtrend, yldvar)
 
 # others --- referenced to CGIAR regions
-rcg <- rast(file.path(datadir, "outdir/all_raster/cgregion_poverty_nue.tif"))
+pnr <- rast(file.path(datadir, "outdir/all_raster/poverty_nue.tif"))
 
 # crop and mask to cgiar regions
-rr1 <- crop(rr1, rcg)
+rr1 <- crop(rr1, pnr)
 rr <- mask(rr1, rcg)
-rr <- c(rcg, rr)
+rr <- c(pnr, rr)
 
 writeRaster(rr, file.path(datadir, "outdir/all_raster/KPI_global_raster_10km.tif"), 
-            gdal=c("COMPRESS=LZW", "TFW=YES","of=COG"), overwrite = TRUE)
+            gdal=c("COMPRESS=LZW", "TFW=YES"), overwrite = TRUE, datatype="FLT4S")
+
+#########################################################################################
+library(terra)
+cgv <- vect( "G:/My Drive/work/ciat/eia/analysis/input/boundary/country_farming_system_cg_regions.shp")
+rr <- rast(file.path(datadir, "outdir/all_raster/KPI_global_raster_10km.tif"))
+names(rr)
+
+# convert specific attributes to raster
+cgvr <- lapply(c("NAME_EN","ISO_A3","cgregin","frmng_s"), function(x) {rasterize(cgv, rr, x)})
+cgvr <- do.call(c, cgvr)
+writeRaster(cgvr, file.path(datadir, "outdir/all_raster/cgregion_country_fs_raster_10km.tif"), 
+            gdal=c("COMPRESS=LZW", "TFW=YES"), overwrite = TRUE)
+
+# combine them
+rr <- c(cgvr, rr)
 
 # convert to dataframe
 dd <- as.data.frame(rr, xy=TRUE, cells=TRUE, na.rm=FALSE)
-dds <- dd[!is.nan(dd$NAME_EN),]
+dd$NAME_EN <- as.character(dd$NAME_EN)
+dd$ISO_A3 <- as.character(dd$ISO_A3)
+dd$cgregin <- as.character(dd$cgregin)
+dd$frmng_s <- dd$frmng_s
+
+dds <- dd[!is.na(dd$NAME_EN),]
 dds[sapply(dds, is.nan)] <- NA
 dds$maize_yieldgap_scaled <- dds$maize_yieldgap/dds$maize_yieldpotential
 dds$rice_yieldgap_scaled <- dds$rice_yieldgap/dds$rice_yieldpotential

@@ -124,13 +124,13 @@ povsp <- merge(cg[,c("ISO_A3")], pvc, by.x = "ISO_A3", by.y = "ISO3", all.x = TR
 # reference raster
 ref <- rast(file.path(datadir, "outdir/all_raster/wc2.1_5m_elev.tif"))
 povv <- vect(povsp)
-povr <- lapply(c("ISO_A3","cgregion","NAME_EN","poverty_avg5yr_imputed","poverty_avg10yr_imputed"), function(x) {rasterize(povv, ref, x)})
+povr <- lapply(c("poverty_avg5yr_imputed","poverty_avg10yr_imputed"), function(x) {rasterize(povv, ref, x)})
 povr <- do.call(c, povr)
 
 # all raster
 rr <- c(povr, nuer)
-writeRaster(rr, file.path(datadir, "outdir/all_raster/cgregion_poverty_nue.tif"), 
-            gdal=c("COMPRESS=LZW", "TFW=YES","of=COG"), overwrite = TRUE)
+writeRaster(rr, file.path(datadir, "outdir/all_raster/poverty_nue.tif"), 
+            gdal=c("COMPRESS=LZW", "TFW=YES"), overwrite = TRUE, datatype="FLT4S")
 
 ############################################################################################################
 # trend function
