@@ -75,7 +75,7 @@ names(vs)[1] <- "NAME_EN"
 shapefile(vs, "G:/My Drive/work/ciat/eia/analysis/input/boundary/country_farming_system_cg_regions.shp",
           overwrite = TRUE)
 
-
+############################################################################################################################
 # all GADM country 
 # cc <-ccodes()
 # cb <- lapply(cc$ISO3, function(x){
