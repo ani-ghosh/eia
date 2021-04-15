@@ -11,6 +11,17 @@ datadir <- "G:\\My Drive\\work\\ciat\\eia\\analysis"
 # reference raster
 ref <- rast(file.path(datadir, "outdir/all_raster/wc2.1_5m_elev.tif"))
 
+
+# poverty indicator --- sub-national child mortality 
+pv <- file.path(datadir, "input/sedac/poverty/povmap-global-subnational-infant-mortality-rates-v2-01-geotiff/povmap_global_subnational_infant_mortality_rates_v2_01.tif")
+pvr <- rast(pv)
+# remove no data etc No Data (-9999), and for No Population or Uninhabited areas including Bodies of Water (-7777).
+px <- classify(pvr, c(-Inf, -100, NA), include.lowest=TRUE)
+px <- aggregate(px, fact = 10, fun = "mean", na.rm = TRUE, cores = 4)
+px <- resample(px, ref, method="bilinear",
+                 file.path(datadir, "outdir/all_raster/povmap-global-subnational-infant-mortality-rates-v2-01_10km.tif"))
+
+
 # NUE/RUE is in vector
 # using already merged vector data
 vv <- st_read(file.path(datadir, "outdir/all_kpi_summary.geojson"))
@@ -55,6 +66,17 @@ wdpa <- aggregate(wdpa, fact = 10, cores = 4,
 names(wdpa) <- "protected_area_cover"
 wdpa <- resample(wdpa, ref, method="bilinear",
                  file.path(datadir, "outdir/all_raster/wdpa_global_raster_10km.tif"))
+
+##################################################################################################
+# market access
+acs <- file.path(datadir, "input/accessibility/2015_accessibility_to_cities_v1.0.tif")
+acr <- rast(acs)
+acr <- aggregate(acr, fact = 10, fun = "mean", na.rm = TRUE, cores = 4)
+# convert to hours
+acr <- acr/60
+acr <- resample(acr, ref, method="bilinear",
+               file.path(datadir, "outdir/all_raster/accessibility_to_cities_10km.tif"))
+
 
 ##########################################################################
 # yield gap

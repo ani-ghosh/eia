@@ -20,30 +20,37 @@ names(area) <- "area_sqkm"
 # population
 # r1 <- rast(file.path(datadir, "outdir/all_raster/cropland_fraction_global_raster_10km.tif"))
 # rural-urban catchment
-ruc <- file.path(datadir, "input\\urban_rural\\Urban-Rural Catchment Areas (URCA).tif") 
-ruc <- rast(ruc)
-# urban center population
-e <- ext(c(-178,178,-58,82))
-pop <- crop(pop, e, snap = "in")
-ruc <- crop(ruc, e, snap = "in")
-ext(pop) <- e
-ext(ruc) <- e
-
-# in catchment data, 1 are urban centers
-m <- c(0, 1, NA,
-       1.5, Inf, 1)
-rclmat <- matrix(m, ncol=3, byrow=TRUE)
-rur <- classify(ruc, rclmat, include.lowest=TRUE)
-rpop <- mask(pop, ruc, maskvalue = 1, 
-             filename = file.path(datadir, "input\\worldpop\\ruralpop_2020_1km_Aggregated.tif"),
-             overwrite = TRUE, gdal=c("COMPRESS=LZW", "TFW=YES"))
-
-rpop <- aggregate(rpop, fact = 10, fun = "sum", na.rm = TRUE, cores = 4)
-names(rpop) <- "rural_population_sum"
-rpop <- resample(rpop, ref, method="bilinear", overwrite = TRUE,
-                 file.path(datadir, "outdir/all_raster/rural_population_global_raster_10km.tif"))
+# ruc <- file.path(datadir, "input\\urban_rural\\Urban-Rural Catchment Areas (URCA).tif") 
+# ruc <- rast(ruc)
+# # urban center population
+# e <- ext(c(-178,178,-58,82))
+# pop <- crop(pop, e, snap = "in")
+# ruc <- crop(ruc, e, snap = "in")
+# ext(pop) <- e
+# ext(ruc) <- e
+# 
+# # in catchment data, 1 are urban centers
+# m <- c(0, 1, NA,
+#        1.5, Inf, 1)
+# rclmat <- matrix(m, ncol=3, byrow=TRUE)
+# rur <- classify(ruc, rclmat, include.lowest=TRUE)
+# rpop <- mask(pop, ruc, maskvalue = 1, 
+#              filename = file.path(datadir, "input\\worldpop\\ruralpop_2020_1km_Aggregated.tif"),
+#              overwrite = TRUE, gdal=c("COMPRESS=LZW", "TFW=YES"))
+# 
+# rpop <- aggregate(rpop, fact = 10, fun = "sum", na.rm = TRUE, cores = 4)
+# names(rpop) <- "rural_population_sum"
+# rpop <- resample(rpop, ref, method="bilinear", overwrite = TRUE,
+#                  file.path(datadir, "outdir/all_raster/rural_population_global_raster_10km.tif"))
 
 rpop <- rast(file.path(datadir, "outdir/all_raster/rural_population_global_raster_10km.tif"))
+
+#################################################################################################
+imr <- rast(file.path(datadir, "outdir/all_raster/povmap-global-subnational-infant-mortality-rates-v2-01_10km.tif")) 
+
+#################################################################################################
+# access
+acc <- rast(file.path(datadir, "outdir/all_raster/accessibility_to_cities_10km.tif"))
 
 #################################################################################################
 # wdpa layers
@@ -60,6 +67,7 @@ sh <- soc/(clay + silt)
 names(sh) <- "soilhealth30cmmean"
 npp <- subset(sn, "npptrend")
 
+#################################################################################################
 # cropland area
 cfrac <- list.files(file.path(datadir, "input/earthstat/CroplandPastureArea2000_Geotiff"), 
                      pattern = glob2rx("*Cropland2000_5m*tif$"), full.names = TRUE, recursive = TRUE)
@@ -93,9 +101,29 @@ yldvar <- grep("cassava|maize|millet|potato|rice|sorghum|wheat", yldvar, value =
 yldvar <- rast(yldvar)
 names(yldvar) <- paste0("yieldvariability_", names(yldvar))
 
+################################################################################################
+# network coverage
+ntw <- file.path(datadir, 
+                 "input/digital_divide_agriculture/Mehrabi2020_SI_10.1038_s41893-020-00631-0/dat/SI_A/Data/Out/tech.all.eck4.tif")
+ntw <- rast(ntw)
+names(ntw) <- "network_coverage"
+ntw <- resample(ntw, rpop, method = "near")
+
+################################################################################################
+# farmsize
+fsz <- file.path(datadir, 
+                 "input/digital_divide_agriculture/Mehrabi2020_SI_10.1038_s41893-020-00631-0/dat/SI_A/Data/Out/farmsize.tif")
+fsz <- rast(fsz)
+
+################################################################################################
+# diversity
+div <- file.path(datadir, 
+                 "outdir/all_raster/diversity_HarvestedArea_175crops.tif")
+div <- rast(div)
+names(div) <- "diversity_175_crops"
 
 # combine the ones we need
-rr1 <- c(rpop, area, ref, cfrac, wdpa, npp, ph, sh, yldgap, yldpot, yldtrend, yldvar)
+rr1 <- c(rpop, area, ref, cfrac, imr, acc, wdpa, npp, ph, sh, div, fsz, yldgap, yldpot, yldtrend, yldvar, ntw)
 
 # others --- referenced to CGIAR regions
 pnr <- rast(file.path(datadir, "outdir/all_raster/poverty_nue.tif"))
@@ -134,7 +162,7 @@ dd <- as.data.frame(rr, xy=TRUE, cells=TRUE, na.rm=FALSE)
 dd$NAME_EN <- as.character(dd$NAME_EN)
 dd$ISO_A3 <- as.character(dd$ISO_A3)
 dd$cgregin <- as.character(dd$cgregin)
-dd$frmng_s <- dd$frmng_s
+dd$frmng_s <- as.character(dd$frmng_s)
 
 # dds <- dd[!is.na(dd$NAME_EN),]
 # dds[sapply(dds, is.nan)] <- NA
@@ -149,6 +177,6 @@ data.table::fwrite(dds, file.path(datadir, "outdir/all_raster/vars_table_10km.cs
 
 x <- rr[[1]]
 values(x) <- NA
-x[dds$cell] <- dds$cropland_fraction
+x[dds$cell] <- dds$nue_avg10yr_imputed
 x[dds$cell] <- dds$elevation
 plot(x)
