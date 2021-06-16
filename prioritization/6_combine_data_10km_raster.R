@@ -180,3 +180,20 @@ values(x) <- NA
 x[dds$cell] <- dds$nue_avg10yr_imputed
 x[dds$cell] <- dds$elevation
 plot(x)
+
+# raster stack for interview
+rr <- rast(file.path(datadir, "outdir/all_raster/KPI_global_raster_10km.tif"))
+tokeep <- c("area_sqkm","elevation",
+            "cropland_fraction", "poverty_avg5yr_imputed","rural_population_sum",
+            "povmap_global_subnational_infant_mortality_rates_v2_01", 
+            "2015_accessibility_to_cities_v1.0","protected_area_cover",                                  
+            "npptrend","nue_avg5yr_imputed","ph30cmmean","soilhealth30cmmean","cassava_yieldgap","maize_yieldgap","millet_yieldgap","potato_yieldgap",
+            "rice_yieldgap","sorghum_yieldgap","wheat_yieldgap1",                                       
+            "cassava_yieldpotential","maize_yieldpotential", "millet_yieldpotential","potato_yieldpotential",                                 
+            "rice_yieldpotential","sorghum_yieldpotential","wheat_yieldpotential","yieldtrend_percentage_maize",                           
+            "yieldtrend_percentage_rice","yieldtrend_percentage_wheat", "yieldvariability_coeff_maize",
+            "yieldvariability_coeff_rice","yieldvariability_coeff_wheat")
+
+rr1 <- subset(rr, tokeep, 
+              filename = file.path(datadir, "outdir/all_raster/var_subset_LMIC_raster_10km.tif"),
+              gdal=c("COMPRESS=LZW"))

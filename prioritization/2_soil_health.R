@@ -1,4 +1,24 @@
-# rasterize/interpolate ACLED data
+library(terra)
+
+# data directory
+datadir <- "G:/My Drive/work/ciat/eia/analysis"
+
+# reference raster
+ref <- rast(file.path(datadir, "outdir/all_raster/wc2.1_5m_elev.tif"))
+names(ref) <- "elevation"
+
+# soil directory
+soildir <- file.path(datadir, "/input/soil")
+
+# human impact
+hh <- list.files(file.path(datadir, "input/human_impact/Global areas of low human"), 
+                 pattern = ".tif$", full.names = TRUE)
+
+hr <- rast(hh)
+
+# reclassify to make non-land to NA, high impact = 0, low impac
+
+# relative soil health
 libs <- c("raster","rgeos","RSQLite","RODBC","sp","sf","terra")
 lapply(libs, library, character.only = TRUE)
 
