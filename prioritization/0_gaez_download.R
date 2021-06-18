@@ -49,6 +49,7 @@ filedownload <- function(i, d, datadir){
   if(!file.exists(dfile)){
     tryCatch(download.file(u, dfile, mode = "wb"), error = function(e) NULL)
   }
+  # tryCatch(download.file(u, dfile, mode = "wb"), error = function(e) NULL)
 }
 
 datadir <- "work/gaez4"
@@ -72,6 +73,22 @@ for (f in ff){
   d <- read.csv(f)
   print(nrow(d))
 }
+
+
+# function to download filtered dataset
+datadir <- "G:/My Drive/work/ciat/adaptation_atlas/GAEZ4/metadata"
+ff <- list.files(datadir, pattern = ".csv$", full.names = TRUE)
+
+#343871
+
+# tar -cvf gaez4.tar gaez
+# gzip -c9 gaez4.tar > gaez4.gz
+
+getGAEZdata <- functtion(theme, sub-theme, var, year, model, rcp, ...){}
+
+library(terra)
+d <- dd[[1]]
+r <- rast(trimws(d$download_url)) 
 
 
 library(readxl)
