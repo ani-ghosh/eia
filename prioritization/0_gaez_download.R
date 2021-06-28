@@ -43,7 +43,7 @@ filedownload <- function(i, d, datadir){
   toremove <- "https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/"
   u <- k$download_url
   u <- trimws(u)
-  fp <- gsub(toremove, "", u)
+  fp <- trimws(gsub(toremove, "", u))
   dfile <- file.path(datadir, "data", fp)
   dir.create(dirname(dfile), F, T)
   if(!file.exists(dfile)){
@@ -53,6 +53,7 @@ filedownload <- function(i, d, datadir){
 }
 
 datadir <- "work/gaez4"
+datadir <- "/cluster01/workspace/ONECGIAR/Data/gaez4/"
 dir.create(datadir, F, T)
 
 params <- data.frame(imageserver = c("LR","res01", "res02", "res05", "res06", "res07"), 
@@ -63,8 +64,9 @@ lapply(1:nrow(params), getMetaData, params, datadir)
 ff <- list.files(datadir, pattern = ".csv$", full.names = T)
 
 for (f in ff){
-  d <- read.csv(f)
-  lapply(1:nrow(d), filedownload, d, datadir)
+  d <- read.csv(f, stringsAsFactors = FALSE)
+  # lapply(1:nrow(d), filedownload, d, datadir)
+  parallel::mclapply(1:nrow(d), filedownload, d, datadir, mc.cores = 60, mc.preschedule = FALSE)
 }
 
 # gsutil -m cp -r /home/anighosh/work/gaez4 gs://gaez4_global
@@ -84,37 +86,37 @@ ff <- list.files(datadir, pattern = ".csv$", full.names = TRUE)
 # tar -cvf gaez4.tar gaez
 # gzip -c9 gaez4.tar > gaez4.gz
 
-getGAEZdata <- functtion(theme, sub-theme, var, year, model, rcp, ...){}
-
-library(terra)
-d <- dd[[1]]
-r <- rast(trimws(d$download_url)) 
-
-
-library(readxl)
-datadir <- "G:/My Drive/work/ciat/adaptation_atlas/GAEZ4"
-
-varops <- read_excel(file.path(datadir, "GAEZ4_DB_Variables_Symbology_Crops.xlsx"), 1)
-crops <- read_excel(file.path(datadir, "GAEZ4_DB_Variables_Symbology_Crops.xlsx"), 2)
-
-
-# Theme 1: Land and Water Resources
-baseurl <- "https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org"
-imgserver <- "LR"
-vars <- varops$`Variable acronym`[varops$`Theme acronym`== "LR"]
-suffix <- "_CRUTS32_Hist_8110.tif"
-
-# Theme 3: Agro-climatic Potential Yield
-imgs <- "res02"
-# yield -> yld 
-# constraining factors: temp, moisture, "agro-climatic", "total climate" 
-vars <- c("yld", "fc1", "fc2", "fc0", "cbd", "Tsc") 
-cds <- c("CRUTS32","GFDL-ESM2M", "HadGEM2-ES", "IPSL-CM5A-LR", "MIROC-ESM-CHEM", "NorESM1-M")
-periodhist <- c("6190H","7100H","8110H")
-periodfut <-  c("2020sH","2050sH","2080sH")
-rcp <- c("Hist",paste0("RCP", c("2.6", "4.5", "6.0", "8.5")))
-water <- c("a", "b") # irrigation/no_irrigation
-
+# getGAEZdata <- functtion(theme, sub-theme, var, year, model, rcp, ...){}
+# 
+# library(terra)
+# d <- dd[[1]]
+# r <- rast(trimws(d$download_url)) 
+# 
+# 
+# library(readxl)
+# datadir <- "G:/My Drive/work/ciat/adaptation_atlas/GAEZ4"
+# 
+# varops <- read_excel(file.path(datadir, "GAEZ4_DB_Variables_Symbology_Crops.xlsx"), 1)
+# crops <- read_excel(file.path(datadir, "GAEZ4_DB_Variables_Symbology_Crops.xlsx"), 2)
+# 
+# 
+# # Theme 1: Land and Water Resources
+# baseurl <- "https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org"
+# imgserver <- "LR"
+# vars <- varops$`Variable acronym`[varops$`Theme acronym`== "LR"]
+# suffix <- "_CRUTS32_Hist_8110.tif"
+# 
+# # Theme 3: Agro-climatic Potential Yield
+# imgs <- "res02"
+# # yield -> yld 
+# # constraining factors: temp, moisture, "agro-climatic", "total climate" 
+# vars <- c("yld", "fc1", "fc2", "fc0", "cbd", "Tsc") 
+# cds <- c("CRUTS32","GFDL-ESM2M", "HadGEM2-ES", "IPSL-CM5A-LR", "MIROC-ESM-CHEM", "NorESM1-M")
+# periodhist <- c("6190H","7100H","8110H")
+# periodfut <-  c("2020sH","2050sH","2080sH")
+# rcp <- c("Hist",paste0("RCP", c("2.6", "4.5", "6.0", "8.5")))
+# water <- c("a", "b") # irrigation/no_irrigation
+# 
 
 # 
 # https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/res02/IPSL-CM5A-LR/rcp6p0/2020sH/teas200a_yld.tif
