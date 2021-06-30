@@ -22,12 +22,13 @@ m <- rast(file.path(datadir,
 m <- m[[nlyr(m)]]
 s <- crop(s, m)
 sm <- c(s, m)
-names(sm) <- c("under5_stunting_prevalence_2017", "under5_mortality_rate_2017")
+
 
 # extract indicators
 health <- extract(sm, cgv, fun = mean, na.rm = TRUE)
 health$ID <- NULL
 health <- round(health*100)
+names(health) <- c("under5_stunting_prevalence_2017(percentage)", "under5_mortality_rate_2017(percentage)")
 
 # library(ggplot2)
 # ggplot(health, aes(x=under5_stunting_prevalence_2017,y=under5_mortality_rate_2017,colour=cg)) + 
@@ -51,13 +52,27 @@ ca <- app(cc, "prod")
 cropland <- extract(ca, cgv, fun = sum, na.rm = TRUE)
 cropland$ID <- NULL
 # cropland <- cropland*100/100 # diving by 100 because the cropland_fraction is in %, then multiplying 100 to ha
-names(cropland) <- "cropland_total_ha"
+names(cropland) <- "cropland_total(ha)"
 
 cropland_percapita <- unname(round(cropland/pop, 2))
+names(cropland_percapita) <- "cropland_percapita(ha/person)"
+
+cropland_perfamily <- cropland_percapita*6
+names(cropland_perfamily) <- "cropland_perfamily(ha/family)"
 
 # cropland_percapita <- ifelse(!is.finite(cropland_percapita), NA, cropland_percapita)
 
-level1 <- data.frame(pop, round(cropland), cropland_percapita = cropland_percapita, health)
+# poverty
+pov <- subset(rr, c("poverty_avg5yr_imputed"))
+poverty <- extract(pov, cgv, fun = mean, na.rm = TRUE)
+poverty$ID <- NULL
+names(poverty) <- "poverty(percentage_national)"
+
+level1 <- data.frame(pop, round(cropland), 
+                     cropland_percapita,
+                     cropland_perfamily,
+                     poverty,
+                     health, check.names = FALSE)
 
 level1[sapply(level1, is.nan)] <- NA
 level1 <- round(level1, 2)
@@ -88,10 +103,11 @@ cerealyldtrend <- rowMeans(d[,c("yieldtrend_percentage_maize", "yieldtrend_perce
  
 cerealyldvar <- rowMeans(d[,c("yieldvariability_coeff_maize", "yieldvariability_coeff_rice","yieldvariability_coeff_wheat")], na.rm = T)
 
-level2 <- data.frame(nue_avg5yr = ag$nue_avg5yr_imputed, 
+level2 <- data.frame(`nue_avg5yr(percentage)` = ag$nue_avg5yr_imputed*100, 
                      soilhealth = d$soilhealth30cmmean, ph = d$ph30cmmean,
-                     cereal_yield_gap = cerealyldgap, rtb_yield_gap = rtbyldgap, 
-                     cereal_yield_trend = cerealyldtrend, cereal_yield_variability = cerealyldvar)
+                     `cereal_yield_gap(ton/ha)` = cerealyldgap, `rtb_yield_gap(ton/ha)` = rtbyldgap, 
+                     `cereal_yield_trend(percentage)` = cerealyldtrend, 
+                     coeff_cereal_yield_variability = cerealyldvar, check.names = FALSE)
 level2[sapply(level2, is.nan)] <- NA
 level2 <- round(level2, 2)
 names(level2) <- paste0("level2_", names(level2))
@@ -104,7 +120,7 @@ acc <- mask(acc, cf, maskvalues = 0)
 
 acs <- extract(acc, cgv, fun = mean, na.rm = TRUE)
 acs$ID <- NULL
-names(acs) <- "accessibility_to_cities_2015"
+names(acs) <- "travel_time_market(hours)"
 
 # access to network
 # only interested in networks where there is population
@@ -129,25 +145,32 @@ pctUnderNetwork <- function(i, cgv, ntwpop){
 }
 
 ntwstat <- sapply(1:nrow(cgv), pctUnderNetwork, cgv, ntwpop)
-ntwstat <- data.frame(network_access_pct = ntwstat)
+# ntwstat <- data.frame(network_access_pct = ntwstat)
 
 # occurrences of conflicts in the last 5 years
 conf <- rast(file.path(datadir, "outdir/all_raster/lmic_conflicts_2016-21.tif"))
 # now only focusing on the total number of conflicts
 confs <- extract(conf[[1]], cgv, fun = sum, na.rm = TRUE)
 confs$ID <- NULL
-names(confs) <- "total_conflicts_2016-21"
+names(confs) <- "total_conflict_incidents_2016-21"
 
-level3 <- data.frame(acs, ntwstat, confs)
-
+level3 <- data.frame(acs, percentage_population_network_access = ntwstat, confs, check.names = FALSE)
 level3[sapply(level3, is.nan)] <- NA
 level3 <- round(level3, 2)
 names(level3) <- paste0("level3_", names(level3))
 
 #########################################################################################################
+# ease of doing business
+eba <- file.path(datadir,"outdir/worldbank/eba_cleaned_country_farming_system_cg_regions.shp")
+eba <- vect(eba)
+eba <- as.data.frame(eba[,c("ISO_A3","NAME_EN","cgregin","frmng_s",  "eb_scr_")])
+names(eba)[5] <- "level3_ease_of_doing_business_score"
+
 # combine information
 # merge all
 v <- cbind(cgv, level1, level2, level3)
+# merge with ease of doing business
+v <- merge(v, eba)
 v$FORMAL_ <- NULL
 v$ECONOMY <- NULL
 v$INCOME_ <- NULL
@@ -159,15 +182,22 @@ v$farming_system <- gsub("[[:digit:]]+","", v$farming_system)
 v$farming_system <- gsub("\\.","", v$farming_system)
 v$farming_system <- trimws(v$farming_system)
 
+# delete units with no population/cropland
+k <- which(v$level1_rural_population == 0 | v$`level1_cropland_total(ha)` == 0) 
+vs <- v[-k, ]
+
 # xx <- aggregate(.~ISO_A3, v, sum, na.rm = TRUE)
-vsf <- st_as_sf(v)
+vsf <- st_as_sf(vs)
 st_write(vsf, file.path(datadir, "outdir/level_stat/level123_cgregion_country_farming_system.geojson"), 
          delete_layer = TRUE)
-st_write(vsf, file.path(datadir, "outdir/level_stat/level123_cgregion_country_farming_system.csv"),
-         delete_layer = TRUE)
+# st_write(vsf, file.path(datadir, "outdir/level_stat/level123_cgregion_country_farming_system.csv"),
+#          delete_layer = TRUE)
+
+write.csv(as.data.frame(vs), file.path(datadir, "outdir/level_stat/level123_cgregion_country_farming_system.csv"), 
+          row.names = FALSE)
 
 # save each region as different excel sheet
-dsf <- as.data.frame(v)
+dsf <- as.data.frame(vs)
 cgs <- unique(dsf$cgregion)
 dcg <- lapply(unique(cgs), function(cg){
   x <- dsf[dsf$cgregion == cg, ]
@@ -175,10 +205,12 @@ dcg <- lapply(unique(cgs), function(cg){
 })
 
 
+oname <- paste0("outdir/level_stat/level123_cgregion_country_farming_system_", format(Sys.time(), "%Y-%m-%d %H-%M"),
+                ".xlsx")
 tmp <- writexl::write_xlsx(list(SAE = dcg[[1]], LAC = dcg[[2]],
                                 SA = dcg[[3]], CWANA = dcg[[4]],
                                 ESA = dcg[[5]], WCA = dcg[[6]]), 
-                           path = file.path(datadir, "outdir/level_stat/level123_cgregion_country_farming_system.xlsx"))
+                           path = file.path(datadir, oname))
 
 
 # d1 <- dd %>% 

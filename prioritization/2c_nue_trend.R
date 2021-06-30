@@ -7,28 +7,13 @@ library(sf)
 # working directory
 datadir <- "G:\\My Drive\\work\\ciat\\eia\\analysis"
 
-# CGIAR region countries
-lac <- data.frame(cgregion = "LAC", ISO3 = c("MEX","GTM","BLZ","SLV","NIC","HND","CRI","PAN","CUB","HTI","JAM","DOM","BHS","PRI",
-         "VIR","VCT","DMA","BRB","TTO","GRD","TCA","COL","ECU","VEN","GUY","SUR","BRA","PER",
-         "ARG","BOL","CHL","PRY","URY"))
-wca <- data.frame(cgregion = "WCA", ISO3 = c("MRT","SEN","MLI","NER","NGA","TCD","GNB","GIN","SLE","LBR","CIV","TGO","GHA","BEN",
-         "CMR","GNQ","GAB","COG","COD","AGO","BFA","CAF","GMB"))
-esa <- data.frame(cgregion = "ESA", ISO3 = c("TZA","KEN","SSD","ERI","ETH","SOM","DJI","RWA","BDI","UGA","ZMB","MOZ","MWI","MDG",
-         "ZWE","NAM","BWA","SWZ","LSO","ZAF","SYC","COM","SLB"))
-cwana <- data.frame(cgregion = "CWANA", ISO3 = c("SDN","EGY","YEM","MAR","ESH","DZA","TUN","LBY","SAU","OMN","ARE","QAT","KWT","IRQ",
-           "IRN","JOR","LBN","SYR","ISR","PSE","TUR","GEO","AZE","ARM","TKM","UZB","KGZ","KAZ",
-           "TJK","AFG"))
-
-sa <- data.frame(cgregion = "SA", ISO3 = c("IND","PAK","BGD","NPL","LKA","BTN"))
-sea <- data.frame(cgregion = "SAE", ISO3 = c("CHN","MMR","THA","LAO","VNM","KHM","IDN","PHL","MYS","TLS","PNG","BRN"))
-
-cgregions <- rbind(lac, wca, esa, cwana, sa, sea)
-
 # vector boundaries
 vdir <- "G:\\My Drive\\work\\ciat\\cg-prioritization"
-cb <- file.path(vdir, "vector/WB_Boundaries_GeoJSON_lowres/WB_countries_Admin0_lowres.geojson")
-cb <- st_read(cb)
+cb <- st_read(file.path(vdir, "vector/WB_Boundaries_GeoJSON_lowres/WB_countries_Admin0_lowres.geojson"))
 cb <- as_Spatial(cb)
+
+# CGIAR region countries
+cgregions <- shapefile(file.path(datadir, "input/boundary/country_farming_system_cg_regions.shp"))
 
 # merge country names
 cgregions <- merge(cgregions, cb[,c("NAME_EN", "ISO_A3")], by.x = "ISO3", by.y = "ISO_A3", all.x = TRUE)
@@ -40,7 +25,7 @@ nue <- readxl::read_excel(file.path(datadir, "input/rue/41586_2015_BFnature15743
                           skip = 1, sheet = 1)
 names(nue)[1] <- "country"
 nue$country <- gsub("\\'", "", nue$country)
-cc <- ccodes()
+cc <- raster::ccodes()
 nue <- merge(cc[,c("NAME", "ISO3", "NAME_FAO")], nue, by.x = "NAME_FAO", by.y = "country", all.y = TRUE)
 
 # fixing some of the names
@@ -68,16 +53,16 @@ write.csv(nue, file.path(datadir, "input/rue/41586_2015_BFnature15743_MOESM47_ES
           row.names = FALSE)
 
 # merge nue with CGIAR regions
-nuec <- merge(cgregions, nue, by = "ISO3", all.x = TRUE)
+nuec <- merge(cgregions, nue, by.x = "ISO_A3", by.y = "ISO3", all.x = TRUE)
 nuec$NAME <- NULL
 
 # last 5 and 10 years average
-c5 <- nuec[,colnames(nuec) %in% tail(colnames(nuec), 5)]
+c5 <- nuec[, names(nuec) %in% tail(names(nuec), 5)]
 c5 <- rowMeans(c5, na.rm = TRUE)
 c5[is.nan(c5)] <- NA
 
 # 10 years
-c10 <- nuec[,colnames(nuec) %in% tail(colnames(nuec), 10)]
+c10 <- nuec[,names(nuec) %in% tail(names(nuec), 10)]
 c10 <- rowMeans(c10, na.rm = TRUE)
 c10[is.nan(c10)] <- NA
 
@@ -133,6 +118,47 @@ writeRaster(rr, file.path(datadir, "outdir/all_raster/poverty_nue.tif"),
             gdal=c("COMPRESS=LZW", "TFW=YES"), overwrite = TRUE, datatype="FLT4S")
 
 ############################################################################################################
+pv <- read.csv(file.path(datadir, "input/poverty/wb_pov.csv"), stringsAsFactors = FALSE)
+eba <- readxl::read_excel(file.path(datadir, "input/worldbank/ease_of_doing_business/eba_country_aggregate_scores_2019.xlsx"),
+                          sheet = 2, skip = 1)
+
+eba$Economy[grep("Congo, Dem. Rep.", eba$Economy)] <- "Democratic Republic of the Congo"
+eba$Economy[grep("Egypt, Arab Rep.", eba$Economy)] <- "Egypt"
+eba$Economy[grep("Korea, Rep.", eba$Economy)] <- "South Korea"
+eba$Economy[grep("Kyrgyz Republic", eba$Economy)] <- "Kyrgyzstan"
+eba$Economy[grep("Lao PDR", eba$Economy)] <- "Laos"
+eba$Economy[grep("Russian Federation", eba$Economy)] <- "Russia"
+eba$Economy[grep("Slovak Republic", eba$Economy)] <- "Slovakia"
+
+# get ISO3 code from other wb dataset
+cc <- raster::ccodes()
+eba <- merge(cc[,c("NAME", "ISO3")], eba, by.x = "NAME", by.y = "Economy")
+eba <- eba[,c("NAME","ISO3", "EBA Topic Score")]
+
+# merge with cgregions
+cgr <- cgregions@data[,c("ISO_A3", "cgregin")]
+cgr <- cgr[!duplicated(cgr),]
+ebac <- merge(cgr, eba, by.x = "ISO_A3", by.y = "ISO3", all.x = TRUE)
+names(ebac) <- c("ISO_A3","cgregion","NAME","eba_score")
+
+# replace missing values by group mean
+impute.mean <- function(x){x <- as.numeric(x); replace(x, is.na(x), mean(x, na.rm = TRUE))}
+ebac <- ebac %>% group_by(cgregion) %>% mutate(eba_score_imputed = impute.mean(eba_score))
+write.csv(ebac, file.path(datadir,"outdir/worldbank/eba_cleaned.csv"), row.names = FALSE)
+
+# cgeregion spatial files
+ebasp <- merge(cgregions, ebac, all.x = TRUE)
+shapefile(ebasp, file.path(datadir,"outdir/worldbank/eba_cleaned_country_farming_system_cg_regions.shp"))
+
+# rasterize
+# reference raster
+ref <- rast(file.path(datadir, "outdir/all_raster/wc2.1_5m_elev.tif"))
+ebav <- vect(ebasp)
+ebar <- rasterize(ebav, ref, "eba_score_imputed")
+
+
+
+############################################################################################################
 # trend function
 getSlope <- function(d){
   x <- 1:ncol(d) - 1
@@ -152,3 +178,5 @@ clist <- nue[,1, drop = TRUE]
 clist <- gsub("\\'", "", clist)
 ns <- data.frame(country = clist, nue_trend = ns, stringsAsFactors = FALSE)
 write.csv(ns, file.path(datadir,"outdir/rue/nue_cleaned_trend.csv"), row.names = FALSE)
+
+
