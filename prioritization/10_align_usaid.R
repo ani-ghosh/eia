@@ -61,7 +61,7 @@ level1 <- data.frame(pop, round(cropland), cropland_percapita = cropland_percapi
 
 level1[sapply(level1, is.nan)] <- NA
 level1 <- round(level1, 2)
-
+names(level1) <- paste0("level1_", names(level1))
 ######################################################################################################################
 # level 2
 
@@ -94,7 +94,7 @@ level2 <- data.frame(nue_avg5yr = ag$nue_avg5yr_imputed,
                      cereal_yield_trend = cerealyldtrend, cereal_yield_variability = cerealyldvar)
 level2[sapply(level2, is.nan)] <- NA
 level2 <- round(level2, 2)
-
+names(level2) <- paste0("level2_", names(level2))
 ######################################################################################################################
 # level 3
 # Travel to the nearest market from any cropland pixel
@@ -142,6 +142,8 @@ level3 <- data.frame(acs, ntwstat, confs)
 
 level3[sapply(level3, is.nan)] <- NA
 level3 <- round(level3, 2)
+names(level3) <- paste0("level3_", names(level3))
+
 #########################################################################################################
 # combine information
 # merge all
@@ -176,7 +178,7 @@ dcg <- lapply(unique(cgs), function(cg){
 tmp <- writexl::write_xlsx(list(SAE = dcg[[1]], LAC = dcg[[2]],
                                 SA = dcg[[3]], CWANA = dcg[[4]],
                                 ESA = dcg[[5]], WCA = dcg[[6]]), 
-                           path = file.path(datadir, "outdir/level_stat/level1_cgregion_country_farming_system.xlsx"))
+                           path = file.path(datadir, "outdir/level_stat/level123_cgregion_country_farming_system.xlsx"))
 
 
 # d1 <- dd %>% 
