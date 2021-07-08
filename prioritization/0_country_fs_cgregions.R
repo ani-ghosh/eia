@@ -108,7 +108,7 @@ vv[sapply(vv, is.null)] <- NULL
 vs <- do.call(rbind,vv)
 vs <- vs[,c("NAME_EN.x","FORMAL_EN","ISO_A3","cgregion","farming_system","ECONOMY","INCOME_GRP","area_sqkm")]
 names(vs)[1] <- "NAME_EN" 
-shapefile(vs, "G:/My Drive/work/ciat/eia/analysis/input/boundary/country_farming_system_cg_regions.shp",
+shapefile(vs, file.path(datadir, "input/boundary/country_farming_system_cg_regions.shp"),
           overwrite = TRUE)
 
 
