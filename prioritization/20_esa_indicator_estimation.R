@@ -80,12 +80,12 @@ wfps <- round(wfps, 2)
 level1 <- data.frame(pop, round(cropland), 
                      cropland_percapita,
                      cropland_perfamily,
-                     poverty,
-                     health, check.names = FALSE)
+                     round(poverty),
+                     health, wfps, check.names = FALSE)
 
 level1[sapply(level1, is.nan)] <- NA
 level1 <- round(level1, 2)
-names(level1) <- paste0("level1_", names(level1))
+# names(level1) <- paste0("level1_", names(level1))
 
 ######################################################################################################################
 # level 2
@@ -194,6 +194,7 @@ ntw <- mask(ntw, rpop)
 ntwb <- ntw
 ntwb[ntwb > 0] <- 1
 ntwpop <- c(ntwb, rpop)
+ntwpop <- extend(ntwpop, rr)
 
 # % of rural population having access to network
 pctUnderNetwork <- function(i, cgv, ntwpop){
@@ -207,6 +208,7 @@ pctUnderNetwork <- function(i, cgv, ntwpop){
 }
 
 ntwstat <- sapply(1:nrow(cgv), pctUnderNetwork, cgv, ntwpop)
+ntwstat <- data.frame(pct_of_rural_pop_internet_access = ntwstat)
 # ntwstat <- data.frame(network_access_pct = ntwstat)
 
 # occurrences of conflicts in the last 5 years
@@ -216,22 +218,24 @@ confs <- extract(conf[[1]], cgv, fun = sum, na.rm = TRUE)
 confs$ID <- NULL
 names(confs) <- "total_conflict_incidents_2016-21"
 
-level3 <- data.frame(acs, percentage_population_network_access = ntwstat, confs, check.names = FALSE)
+level3 <- data.frame(acs, ntwstat, confs, check.names = FALSE)
 level3[sapply(level3, is.nan)] <- NA
 level3 <- round(level3, 2)
-names(level3) <- paste0("level3_", names(level3))
+
 
 #########################################################################################################
 # ease of doing business
 eba <- file.path(datadir,"outdir/worldbank/eba_cleaned_country_farming_system_cg_regions.shp")
 eba <- vect(eba)
 eba <- as.data.frame(eba[,c("ISO_A3","NAME_EN","cgregin","frmng_s",  "eb_scr_")])
-names(eba)[5] <- "level3_ease_of_doing_business_score"
+names(eba)[5] <- "ease_of_doing_business_score"
+eba$ease_of_doing_business_score <- round(eba$ease_of_doing_business_score)
 
 # combine information
 # merge all
-v <- cbind(cgv, level1, level2, level3)
+v <- cbind(cgv, level1, level3)
 # merge with ease of doing business
+v <- merge(v, level2)
 v <- merge(v, eba)
 v$FORMAL_ <- NULL
 v$ECONOMY <- NULL
@@ -245,17 +249,17 @@ v$farming_system <- gsub("\\.","", v$farming_system)
 v$farming_system <- trimws(v$farming_system)
 
 # delete units with no population/cropland
-k <- which(v$level1_rural_population == 0 | v$`level1_cropland_total(ha)` == 0) 
+k <- which(v$rural_population == 0 | v$`cropland_total(ha)` == 0) 
 vs <- v[-k, ]
 
 # xx <- aggregate(.~ISO_A3, v, sum, na.rm = TRUE)
 vsf <- st_as_sf(vs)
-st_write(vsf, file.path(datadir, "outdir/level_stat/level123_cgregion_country_farming_system.geojson"), 
+st_write(vsf, file.path(datadir, "outdir/level_stat/esa_region_country_farming_system.geojson"), 
          delete_layer = TRUE)
 # st_write(vsf, file.path(datadir, "outdir/level_stat/level123_cgregion_country_farming_system.csv"),
 #          delete_layer = TRUE)
 
-write.csv(as.data.frame(vs), file.path(datadir, "outdir/level_stat/level123_cgregion_country_farming_system.csv"), 
+write.csv(as.data.frame(vs), file.path(datadir, "outdir/level_stat/esa_region_country_farming_system.csv"), 
           row.names = FALSE)
 
 # save each region as different excel sheet
