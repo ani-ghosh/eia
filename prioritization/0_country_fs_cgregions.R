@@ -42,13 +42,13 @@ sea <- data.frame(cgregion = "SAE", ISO3 = c("CHN","MMR","THA","LAO","VNM","KHM"
 cgregions <- rbind(lac, wca, esa, cwana, sa, sea)
 
 # modified list of LMIC countires
-tsio <- c('AFG','AGO','ARM','AZE','BDI','BEN','BFA','BGD','BLZ','BOL','BTN','BWA','CAF','CHN','CIV','CMR','COD','COG','COL','CRI','CUB',
-          'DMA','DOM','DZA','ECU','EGY','ERI','ETH','GAB','GHA','GIN','GMB','GNB','GRD','GTM','GUY','HND','HTI','IDN','IND','IRN','IRQ',
-          'JAM','KAZ','KEN','KGZ','KHM','LAO','LBN','LBR','LBY','LKA','LSO','MAR','MDG','MEX','MLI','MMR','MOZ','MRT','MWI','MYS',
-          'NAM','NER','NGA','NIC','NPL','PAK','PAN','PER','PHL','PNG','PRY','PSE','RWA','SDN','SEN','SLB','SLE','SLV','SOM','SSD','SUR','SWZ','SYR',
-          'TCD','TGO','THA','TJK','TKM','TLS','TUN','TZA','UGA','UZB','VCT','VEN','VNM','YEM','ZMB','ZWE')
-
-cgregions <- cgregions[cgregions$ISO3 %in% tiso, ]
+# tsio <- c('AFG','AGO','ARM','AZE','BDI','BEN','BFA','BGD','BLZ','BOL','BTN','BWA','CAF','CHN','CIV','CMR','COD','COG','COL','CRI','CUB',
+#           'DMA','DOM','DZA','ECU','EGY','ERI','ETH','GAB','GHA','GIN','GMB','GNB','GRD','GTM','GUY','HND','HTI','IDN','IND','IRN','IRQ',
+#           'JAM','KAZ','KEN','KGZ','KHM','LAO','LBN','LBR','LBY','LKA','LSO','MAR','MDG','MEX','MLI','MMR','MOZ','MRT','MWI','MYS',
+#           'NAM','NER','NGA','NIC','NPL','PAK','PAN','PER','PHL','PNG','PRY','PSE','RWA','SDN','SEN','SLB','SLE','SLV','SOM','SSD','SUR','SWZ','SYR',
+#           'TCD','TGO','THA','TJK','TKM','TLS','TUN','TZA','UGA','UZB','VCT','VEN','VNM','YEM','ZMB','ZWE')
+# 
+# cgregions <- cgregions[cgregions$ISO3 %in% tiso, ]
 
 ################################################################################################
 # simplified vector boundaries
@@ -86,7 +86,7 @@ dc1$ORIG_FID <- NULL
 fs1 <- fs - dc1
 fs1 <- bind(fs1, dc1)
 
-shapefile(fs1, file.path(vdir, "vector/farming_system_combined_2001_12_ca_dry_corridor.shp"))
+shapefile(fs1, file.path(vdir, "vector/farming_system_combined_2001_12_ca_dry_corridor.shp"), overwrite = TRUE)
 
 #########################################################################################
 # combine with farming systems
@@ -110,6 +110,10 @@ vs <- vs[,c("NAME_EN.x","FORMAL_EN","ISO_A3","cgregion","farming_system","ECONOM
 names(vs)[1] <- "NAME_EN" 
 shapefile(vs, "G:/My Drive/work/ciat/eia/analysis/input/boundary/country_farming_system_cg_regions.shp",
           overwrite = TRUE)
+
+
+
+
 
 ############################################################################################################################
 # all GADM country 
