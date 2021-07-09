@@ -7,6 +7,33 @@ datadir <- "G:/My Drive/work/ciat/eia/analysis"
 
 # this after combining Central American Dry Corridor with Dixon maps
 cgv <- vect(file.path(datadir, "input/boundary/country_farming_system_cg_regions.shp"))
+# bit of cleaning
+
+cgv$FORMAL_ <- NULL
+cgv$ECONOMY <- NULL
+cgv$INCOME_ <- NULL
+cgv$ar_sqkm <- NULL
+names(cgv)[names(cgv) == "frmng_s"] <- "farming_system"
+names(cgv)[names(cgv) == "cgregin"] <- "cgregion"
+
+cgv$farming_system <- gsub("[[:digit:]]+","", cgv$farming_system)
+cgv$farming_system <- gsub("\\.","", cgv$farming_system)
+cgv$farming_system <- trimws(cgv$farming_system)
+
+# target countries
+tiso <- c('AFG','AGO','ARM','AZE','BDI','BEN','BFA','BGD','BLZ','BOL','BTN','BWA','CAF','CIV','CMR','COD','COG','COL','CRI','CUB',
+          'DMA','DOM','DZA','ECU','EGY','ERI','ETH','GAB','GHA','GIN','GMB','GNB','GRD','GTM','GUY','HND','HTI','IDN','IND','IRN','IRQ',
+          'JAM','KAZ','KEN','KGZ','KHM','LAO','LBN','LBR','LBY','LKA','LSO','MAR','MDG','MEX','MLI','MMR','MOZ','MRT','MWI',
+          'NAM','NER','NGA','NIC','NPL','PAK','PAN','PER','PHL','PNG','PRY','PSE','RWA','SDN','SEN','SLB','SLE','SLV','SOM','SSD','SUR','SWZ','SYR',
+          'TCD','TGO','THA','TJK','TKM','TLS','TUN','TZA','UGA','UZB','VCT','VEN','VNM','YEM','ZMB','ZWE')
+cgv <- cgv[cgv$ISO_A3 %in% tiso,]
+cgv$UID <- paste0(cgv$farming_system, "_", cgv$ISO_A3)
+
+# exclude farming systems
+rfc <- readxl::read_excel("data/irrelevant_country_farming_systems.xlsx", sheet = 1)
+cgv <- cgv[!cgv$UID %in% rfc$UID,]
+cgv <- cgv[cgv$farming_system != "",]
+cgv$UID <- NULL
 
 ####################################################################################################################################
 # level 1
@@ -23,6 +50,7 @@ m <- m[[nlyr(m)]]
 s <- crop(s, m)
 sm <- c(s, m)
 
+# TODO save as aligned with the reference raster
 
 # extract indicators
 health <- extract(sm, cgv, fun = mean, na.rm = TRUE)
@@ -48,9 +76,12 @@ rr <- rast(file.path(datadir, "outdir/all_raster/KPI_global_raster_10km.tif"))
 # r <- subset(rr, c("poverty_avg5yr_imputed","povmap_global_subnational_infant_mortality_rates_v2_01"))
 # cropland fraction and area
 cc <- subset(rr, c("cropland_fraction", "area_sqkm"))
+
+# TODO save as aligned with the reference raster 
 ca <- app(cc, "prod")
 cropland <- extract(ca, cgv, fun = sum, na.rm = TRUE)
 cropland$ID <- NULL
+cropland <- round(cropland)
 # cropland <- cropland*100/100 # diving by 100 because the cropland_fraction is in %, then multiplying 100 to ha
 names(cropland) <- "cropland_total(ha)"
 
@@ -63,48 +94,14 @@ names(cropland_perfamily) <- "cropland_perfamily(ha/family)"
 # cropland_percapita <- ifelse(!is.finite(cropland_percapita), NA, cropland_percapita)
 
 # poverty
-# national level data for 1.9 USD/daily estimate
-u <- "https://api.worldbank.org/v2/en/indicator/SI.POV.NAHC?downloadformat=excel"
-pfile <- file.path(datadir, "input/worldbank/national_poor_ppp.xls")
-if(!file.exists(pfile)) {download.file(u, pfile, mode = "wb")}
-npov <- readxl::read_excel(pfile, sheet = 1, skip = 3)
-
-# compute last 5 year average
-p5 <- npov[, names(npov) %in% tail(names(npov), 10)]
-p5 <- unlist(apply(p5, 1, max, na.rm = TRUE))
-p5[!is.finite(p5)] <- NA
-pov5 <- data.frame(npov[,1:2], poverty_avg5yr = round(p5,2))
-names(pov5) <- c("country_name","iso3","poverty_avg5yr")
-
-# replace missing/NA values in nub-national poverty with national estimates
-snpov <- shapefile(file.path(datadir, "input/worldbank/global_subnational_poverty_nov2018/global_poverty_nov2018.shp"))
-snpov19 <- snpov[,c("OBJECTID","CountryCod","ADM0_NAME","ADM1_NAME","poor_ppp19")]
-names(snpov19)[2] <- "iso3"
-snpov19$poor_ppp19 <- round(snpov19$poor_ppp19*100, 2)
-
-library(rqdatatable)
-ss <- natural_join(snpov19@data, pov5, by = "iso3", jointype = "LEFT")
-ss$poor_ppp19_est <- ifelse(ss$poor_ppp19 < 0, ss$poverty_avg5yr, ss$poor_ppp19)
-snpov19 <- merge(snpov19, ss[,c("OBJECTID","poverty_avg5yr","poor_ppp19_est")], by = "OBJECTID")
-
-shapefile(snpov19, 
-          file.path(datadir, "outdir/worldbank/global_subnational_poverty_nov2018_gapfilled.shp"),
-          overwrite = TRUE)
-
-povv <- vect(file.path(datadir, "outdir/worldbank/global_subnational_poverty_nov2018_gapfilled.shp"))
-names(povv) <- c("OBJECTID","iso3","ADM0_NAME","ADM1_NAME","poor_ppp19","poverty_avg5yr","poor_ppp19_est")
-ref <- rast(file.path(datadir, "outdir/all_raster/wc2.1_5m_elev.tif"))
-names(ref) <- "elevation"
-povr <- rasterize(povv, ref, "poor_ppp19_est", fun = mean, na.rm = T)
-writeRaster(povr, file.path(datadir, "outdir/worldbank/poor_ppp19_est.tif"), 
-            gdal=c("COMPRESS=LZW"), overwrite = TRUE)
-
-pov <- subset(rr, c("poverty_avg5yr_imputed"))
+pov <- rast(file.path(datadir, "outdir/worldbank/poor_ppp19_est.tif"))
+# pov1 <- subset(rr, c("poverty_avg5yr_imputed"))
 poverty <- extract(pov, cgv, fun = mean, na.rm = TRUE)
 poverty$ID <- NULL
-names(poverty) <- "poverty(percentage_national)"
+names(poverty) <- "poverty(percentage_subnational)"
+povert <- round(poverty)
 
-level1 <- data.frame(pop, round(cropland), 
+level1 <- data.frame(pop, cropland, 
                      cropland_percapita,
                      cropland_perfamily,
                      poverty,
@@ -116,7 +113,6 @@ names(level1) <- paste0("level1_", names(level1))
 
 ######################################################################################################################
 # level 2
-
 # ag indicators
 mvar <- c("nue_avg5yr_imputed", "soilhealth30cmmean", "ph30cmmean", 
           "cassava_yieldgap", "maize_yieldgap", "millet_yieldgap", "potato_yieldgap",
@@ -154,8 +150,9 @@ names(level2) <- paste0("level2_", names(level2))
 # Travel to the nearest market from any cropland pixel
 cf <- subset(rr, "cropland_fraction")
 acc <- subset(rr, "2015_accessibility_to_cities_v1.0")
-acc <- mask(acc, cf, maskvalues = 0)
 
+# TODO save as aligned with the reference raster
+acc <- mask(acc, cf, maskvalues = 0)
 acs <- extract(acc, cgv, fun = mean, na.rm = TRUE)
 acs$ID <- NULL
 names(acs) <- "travel_time_market(hours)"
@@ -183,6 +180,7 @@ pctUnderNetwork <- function(i, cgv, ntwpop){
 }
 
 ntwstat <- sapply(1:nrow(cgv), pctUnderNetwork, cgv, ntwpop)
+ntwstat <- data.frame(pct_of_rural_pop_internet_access = ntwstat)
 # ntwstat <- data.frame(network_access_pct = ntwstat)
 
 # occurrences of conflicts in the last 5 years
@@ -192,7 +190,7 @@ confs <- extract(conf[[1]], cgv, fun = sum, na.rm = TRUE)
 confs$ID <- NULL
 names(confs) <- "total_conflict_incidents_2016-21"
 
-level3 <- data.frame(acs, percentage_population_network_access = ntwstat, confs, check.names = FALSE)
+level3 <- data.frame(acs, ntwstat, confs, check.names = FALSE)
 level3[sapply(level3, is.nan)] <- NA
 level3 <- round(level3, 2)
 names(level3) <- paste0("level3_", names(level3))
@@ -202,27 +200,64 @@ names(level3) <- paste0("level3_", names(level3))
 eba <- file.path(datadir,"outdir/worldbank/eba_cleaned_country_farming_system_cg_regions.shp")
 eba <- vect(eba)
 eba <- as.data.frame(eba[,c("ISO_A3","NAME_EN","cgregin","frmng_s",  "eb_scr_")])
-names(eba)[5] <- "level3_ease_of_doing_business_score"
+names(eba) <- c("ISO_A3","NAME_EN","cgregion","farming_system","level3_ease_of_doing_business_score")
+
+eba$farming_system <- gsub("[[:digit:]]+","", eba$farming_system)
+eba$farming_system <- gsub("\\.","", eba$farming_system)
+eba$farming_system <- trimws(eba$farming_system)
+
+eba$UID <- paste0(eba$farming_system, "_", eba$ISO_A3)
+eba <- eba[!eba$UID %in% rfc$UID,]
+eba <- eba[eba$farming_system != "",]
+eba$UID <- NULL
 
 # combine information
 # merge all
 v <- cbind(cgv, level1, level2, level3)
+v$`level3_conflicts per 100,000 rural person` <- 100000*v$`level3_total_conflict_incidents_2016-21`/v$level1_rural_population
 # merge with ease of doing business
-v <- merge(v, eba)
-v$FORMAL_ <- NULL
-v$ECONOMY <- NULL
-v$INCOME_ <- NULL
-v$ar_sqkm <- NULL
-names(v)[names(v) == "frmng_s"] <- "farming_system"
-names(v)[names(v) == "cgregin"] <- "cgregion"
-
-v$farming_system <- gsub("[[:digit:]]+","", v$farming_system)
-v$farming_system <- gsub("\\.","", v$farming_system)
-v$farming_system <- trimws(v$farming_system)
+v <- merge(v, eba, all.x = TRUE)
 
 # delete units with no population/cropland
 k <- which(v$level1_rural_population == 0 | v$`level1_cropland_total(ha)` == 0) 
 vs <- v[-k, ]
+# vs$level1_ID <- NULL
+# ranking
+cond1 <- ifelse(vs$`level1_cropland_total(ha)` >= 500000, 1, 0)
+cond2 <- ifelse(vs$`level1_cropland_perfamily(ha/family)` < 5, 1, 0)
+cond3 <- ifelse(vs$`level3_travel_time_market(hours)` <= 4, 1, 0)
+cond4 <- ifelse(vs$level3_ease_of_doing_business_score >= 40, 1, 0)
+# cond5 <- ifelse(vs$`level3_conflicts per 100,000 rural person` <= 15, 1, 0)
+cond <- data.frame(cond1, cond2, cond3, cond4)
+cond$fcond <- ifelse(rowSums(cond[,c(1:4)], na.rm = T) == 4, 1, 0)
+cond$fcond <- ifelse(rowSums(cond[,c(1:4)], na.rm = T) == 3 & cond$cond4 == 0, 2, cond$fcond)
+cond$fcond <- ifelse(rowSums(cond[,c(1:4)], na.rm = T) == 2 & cond$cond4 == 0 & cond$cond3 == 0, 3, cond$fcond)
+
+vs$rank <- cond$fcond
+
+# save each region as different excel sheet
+dsf <- as.data.frame(vs)
+cgs <- unique(dsf$cgregion)
+dcg <- lapply(unique(cgs), function(cg){
+  x <- dsf[dsf$cgregion == cg, ]
+  return(x)
+})
+
+rankrule <- data.frame(rule = 
+                c("more than 500k ha cropland & less than 5 ha per household & less than 4 hrs to markets & more then 40 ease of doing business",
+                  "more than 500k ha cropland & less than 5 ha per household & less than 4 hrs to markets & less then 40 ease of doing business",
+                  "more than 500k ha cropland & less than 5 ha per household & more than 4 hrs to markets & less then 40 ease of doing business"),
+                rank = 1:3)
+
+oname <- paste0("outdir/level_stat/level123_cgregion_country_farming_system_", format(Sys.time(), "%Y-%m-%d %H-%M"),
+                ".xlsx")
+tmp <- writexl::write_xlsx(list(SAE = dcg[[1]], LAC = dcg[[2]],
+                                SA = dcg[[3]], CWANA = dcg[[4]],
+                                ESA = dcg[[5]], WCA = dcg[[6]], rankingrule = rankrule), 
+                           path = file.path(datadir, oname))
+
+
+
 
 # xx <- aggregate(.~ISO_A3, v, sum, na.rm = TRUE)
 vsf <- st_as_sf(vs)
@@ -233,22 +268,6 @@ st_write(vsf, file.path(datadir, "outdir/level_stat/level123_cgregion_country_fa
 
 write.csv(as.data.frame(vs), file.path(datadir, "outdir/level_stat/level123_cgregion_country_farming_system.csv"), 
           row.names = FALSE)
-
-# save each region as different excel sheet
-dsf <- as.data.frame(vs)
-cgs <- unique(dsf$cgregion)
-dcg <- lapply(unique(cgs), function(cg){
-  x <- dsf[dsf$cgregion == cg, ]
-  return(x)
-})
-
-
-oname <- paste0("outdir/level_stat/level123_cgregion_country_farming_system_", format(Sys.time(), "%Y-%m-%d %H-%M"),
-                ".xlsx")
-tmp <- writexl::write_xlsx(list(SAE = dcg[[1]], LAC = dcg[[2]],
-                                SA = dcg[[3]], CWANA = dcg[[4]],
-                                ESA = dcg[[5]], WCA = dcg[[6]]), 
-                           path = file.path(datadir, oname))
 
 
 # d1 <- dd %>% 
