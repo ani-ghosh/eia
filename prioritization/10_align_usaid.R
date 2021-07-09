@@ -215,6 +215,7 @@ eba$UID <- NULL
 # merge all
 v <- cbind(cgv, level1, level2, level3)
 v$`level3_conflicts per 100,000 rural person` <- 100000*v$`level3_total_conflict_incidents_2016-21`/v$level1_rural_population
+v$`level3_conflicts per 100,000 rural person` <- round(v$`level3_conflicts per 100,000 rural person`)
 # merge with ease of doing business
 v <- merge(v, eba, all.x = TRUE)
 
@@ -240,6 +241,7 @@ dsf <- as.data.frame(vs)
 cgs <- unique(dsf$cgregion)
 dcg <- lapply(unique(cgs), function(cg){
   x <- dsf[dsf$cgregion == cg, ]
+  x <- x[order(x$rank),]
   return(x)
 })
 
