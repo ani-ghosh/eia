@@ -3,9 +3,10 @@ library(sf)
 library(raster)
 datadir <- "G:/My Drive/work/ciat/eia/analysis"
 
-xl <- "G:/My Drive/work/ciat/eia/analysis/output/level123_cgregion_country_farming_system_2021-06-30 18-15 - BV.xlsx"
-d <- read_excel(xl, sheet = 2)
-head(d)
+xl <- "G:/My Drive/work/ciat/eia/analysis/output/Level123_cgregion_country_farming_system_2021-07-11 15-08 - BV.xlsx"
+d <- read_excel(xl, sheet = 1)
+
+d$id <- paste0(d$farming_system, "_", d$ISO_A3)
 # ds <- d[,c(2,3)]
 # ds <- ds[complete.cases(ds),]
 # colnames(ds) <- ds[1,]
@@ -16,27 +17,68 @@ vs <- shapefile(file.path(datadir, "input/boundary/country_farming_system_cg_reg
 vs$frmng_s <- gsub("[[:digit:]]+","", vs$frmng_s)
 vs$frmng_s <- gsub("\\.","", vs$frmng_s)
 vs$frmng_s <- trimws(vs$frmng_s)
-
+vs$cgregin[vs$cgregin == "SAE"] <- "SEA"
 vs$id <- paste0(vs$frmng_s, "_", vs$ISO_A3)
 
 vds <- vs[vs$id %in% d$id,]
+vds <- merge(vds, d, by = "id")
 
 vdir <- "G:\\My Drive\\work\\ciat\\cg-prioritization"
 cb <- file.path(vdir, "vector/WB_Boundaries_GeoJSON_lowres/WB_countries_Admin0_lowres.geojson")
 cb <- st_read(cb)
 cb <- as_Spatial(cb)
-cbs <- cb[vs,]
+cbs <- cb[cb$ISO_A3 %in% vs$ISO_A3,]
 
-png(file.path(datadir, "output/selected_geometries_v2.png"), height = 10, width = 15, units = "in", res = 300)
-plot(vs, border = "#f0f0f0", col = "#f0f0f0")
-plot(cb, add = T)
-plot(vds, border = "#1d91c0", col = "#1d91c0", add = T)
-dev.off()
+cgr <- unique(vs$cgregin)
 
-png(file.path(datadir, "output/selected_geometries_v3.png"), height = 10, width = 15, units = "in", res = 300)
-plot(vs, border = "#f0f0f0", col = "#f0f0f0")
-plot(cbs, add = T)
-plot(vds, border = "#1d91c0", col = "#1d91c0", add = T)
-dev.off()
+# individual extent
+rgx <- lapply(cgr, function(x){
+  p <- vds[vds$cgregin == x, ]
+  z <- raster(p, nrow=1, ncol=1, vals=1)
+  names(z) <- "zone"
+  # coerce RasterLayer to SpatialPolygonsDataFrame
+  z <- as(z, 'SpatialPolygonsDataFrame')
+  z$zone <- x
+  z
+})
+rgx <- do.call(rbind, rgx)
 
-ds$id[!ds$id %in% vs$id]
+
+for (cg in cgr){
+  ofile <- file.path(datadir, "output", paste0(cg, "_selected_geometries_v4.png"))
+  
+  rg <- rgx[rgx$zone == cg, ]
+  
+  png(ofile, height = 10, width = 20, units = "in", res = 300)
+  par(mfrow=c(1,2))
+  plot(rg, border = "#ffffff", main = "level 1", cex.main = 3)
+  plot(vs[vs$cgregin == cg,], border = "#f0f0f0", col = "#f0f0f0", lwd = 0.5, add = T)
+  plot(cbs, col = NA, lwd = 0.5, add = T)
+  vds1 <- vds[vds$cgregin == cg,]
+  cols <- c("#33a02c", "#fdbf6f")[vds1$rank]
+  plot(vds1, col = cols, lwd = 0.1,  add = T)
+  
+  legend("bottomleft",
+         legend = paste(cg, "region"),
+         fill = NA,
+         border = NA,
+         bty = "n", # turn off the legend border
+         cex = 3)
+  
+  plot(rg, border = "#ffffff", main = "level 1 & level 3", cex.main = 3)
+  plot(vs[vs$cgregin == cg,], border = "#f0f0f0", col = "#f0f0f0", lwd = 0.5, add = T)
+  plot(cbs, col = NA, lwd = 0.5, add = T)
+  vds2 <- vds[vds$cgregin == cg & vds$rank == 1,]
+  plot(vds2, col = "#33a02c", lwd = 0.1,  add = T)
+  
+  dev.off()
+  
+}
+
+# legend("topleft",
+#        legend = c("level 1 & level 3", "level 1"),
+#        fill = c("#33a02c", "#fdbf6f"),
+#        bty = "n", # turn off the legend border
+#        cex = 2.5)
+
+

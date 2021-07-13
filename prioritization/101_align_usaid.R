@@ -2,6 +2,51 @@
 library(terra)
 library(sf)
 
+dd <- readxl::read_excel("data/compare.xlsx", sheet = 1)
+dd <- dd[!is.na(dd$`Farming system`), ]
+dd$USAID_poverty_pct_SSA <- dd$USAID_population_in_poverty_SSA*100/dd$USAID_total_population_SSA
+
+reg1 <- lm(USAID_rural_population_SSA~EIA_rural_population_SSA, data = dd) 
+with(dd,plot(USAID_rural_population_SSA, EIA_rural_population_SSA))
+abline(reg1)
+
+library(ggplot2)
+
+lm_eqn <- function(df){
+  m <- lm(EIA_rural_population_SSA ~ USAID_rural_population_SSA, df);
+  eq <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(r)^2~"="~r2, 
+                   list(a = format(unname(coef(m)[1]), digits = 2),
+                        b = format(unname(coef(m)[2]), digits = 2),
+                        r2 = format(summary(m)$r.squared, digits = 3)))
+  as.character(as.expression(eq));
+}
+
+ggplot(dd, aes(x=USAID_rural_population_SSA, y=EIA_rural_population_SSA)) + 
+  geom_point(aes(size = 5))+
+  geom_smooth(method=lm, se=FALSE, linetype="dashed",
+              color="darkred") +
+  geom_text(label=dd$`Farming system`) +
+  geom_text(x = 25, y = 100, label = lm_eqn(dd), parse = TRUE) +
+  theme_bw()  
+
+library(ggpubr)
+p1 <- ggscatter(dd, x = "USAID_rural_population_SSA", y = "EIA_rural_population_SSA", add = "reg.line",
+          label = "Farming system", repel = TRUE, title = "Compare rural population SSA (in million)") +
+  stat_cor(label.y = 120, 
+           aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))) +
+  stat_regline_equation(label.y = 110) +
+  font("title", size = 14, color = "blue", face = "bold.italic")
+  
+p2 <- ggscatter(dd, x = "USAID_poverty_pct_SSA", y = "EIA_poverty_pct_SSA", add = "reg.line",
+                label = "Farming system", repel = TRUE, title = "Compare poverty percentage SSA") +
+  stat_cor(label.y = 65, 
+           aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~"))) +
+  stat_regline_equation(label.y = 60)  +
+  font("title", size = 14, color = "blue", face = "bold.italic")
+
+pp <- ggarrange(p1, p2, ncol = 2, nrow = 1)
+ggsave("data/compare_usaid_eia_ssa.png", height = 5, width = 12)
+
 # input
 datadir <- "G:/My Drive/work/ciat/eia/analysis"
 
@@ -27,7 +72,13 @@ tiso <- c('AFG','AGO','ARM','AZE','BDI','BEN','BFA','BGD','BLZ','BOL','BTN','BWA
           'NAM','NER','NGA','NIC','NPL','PAK','PAN','PER','PHL','PNG','PRY','PSE','RWA','SDN','SEN','SLB','SLE','SLV','SOM','SSD','SUR','SWZ','SYR',
           'TCD','TGO','THA','TJK','TKM','TLS','TUN','TZA','UGA','UZB','VCT','VEN','VNM','YEM','ZMB','ZWE')
 
+tiso <- c("AGO","BDI","BEN","BFA","BWA","CAF","CIV","CMR","COD","COG","COM","CPV",
+          "ERI","ETH","GAB","GHA","GIN","GMB","GNB","GNQ","KEN","LBR","LSO","MDG",
+          "MLI","MOZ","MRT","MUS","MWI","NAM","NER","NGA","RWA","SDN","SEN","SLE",
+          "SOM","SSD","STP","SWZ","SYC","TCD","TGO","TZA","UGA","ZAF","ZMB","ZWE")
+
 cgv <- cgv[cgv$ISO_A3 %in% tiso,]
+cgv <- aggregate(cgv, "farming_system")
 cgv$UID <- paste0(cgv$farming_system, "_", cgv$ISO_A3)
 
 # exclude farming systems
@@ -70,7 +121,7 @@ names(health) <- c("under5_stunting_prevalence_2017(percentage)", "under5_mortal
 rpop <- rast(paste0(datadir, "/outdir/rural_population/global_rural_pop_10km.vrt"))
 pop <- extract(rpop, cgv, fun = sum, na.rm = TRUE)
 pop$ID <- NULL
-pop <- round(pop)
+pop <- data.frame(cgv$farming_system, round(pop)/1000000)
 names(pop) <- "rural_population"
 
 # other raster
@@ -104,6 +155,8 @@ names(poverty) <- "poverty(percentage_subnational)"
 poverty <- round(poverty)
 poverty[poverty < 0] <- NA
 
+poverty <- data.frame(cgv$farming_system, poverty)
+
 level1 <- data.frame(pop, cropland, 
                      cropland_percapita,
                      cropland_perfamily,
@@ -135,7 +188,7 @@ cerealyldgap <- rowMeans(d[,c("maize_yieldgap","millet_yieldgap", "rice_yieldgap
 rtbyldgap <- rowMeans(d[,c("cassava_yieldgap","potato_yieldgap")], na.rm = T)
 
 cerealyldtrend <- rowMeans(d[,c("yieldtrend_percentage_maize", "yieldtrend_percentage_rice","yieldtrend_percentage_wheat")], na.rm = T)
- 
+
 cerealyldvar <- rowMeans(d[,c("yieldvariability_coeff_maize", "yieldvariability_coeff_rice","yieldvariability_coeff_wheat")], na.rm = T)
 
 level2 <- data.frame(`nue_avg5yr(percentage)` = ag$nue_avg5yr_imputed*100, 
@@ -292,10 +345,10 @@ dcs2 <- bind_rows(dcs2)
 # dcs3 <- bind_rows(dcs3)
 
 rankrule <- data.frame(rule = 
-                c("more than 500k ha cropland & less than 5 ha per household & less than 4 hrs to markets & more then 40 ease of doing business",
-                  "more than 500k ha cropland & less than 5 ha per household & less than 4 hrs to markets & less then 40 ease of doing business",
-                  "more than 500k ha cropland & less than 5 ha per household & more than 4 hrs to markets & less then 40 ease of doing business"),
-                rank = 1:3)
+                         c("more than 500k ha cropland & less than 5 ha per household & less than 4 hrs to markets & more then 40 ease of doing business",
+                           "more than 500k ha cropland & less than 5 ha per household & less than 4 hrs to markets & less then 40 ease of doing business",
+                           "more than 500k ha cropland & less than 5 ha per household & more than 4 hrs to markets & less then 40 ease of doing business"),
+                       rank = 1:3)
 
 
 oname <- paste0("outdir/level_stat/level123_cgregion_country_farming_system_", format(Sys.time(), "%Y-%m-%d %H-%M"),
