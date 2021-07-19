@@ -73,3 +73,18 @@ names(ref) <- "elevation"
 povr <- rasterize(povv, ref, "poor_ppp19_est", fun = mean, na.rm = T)
 writeRaster(povr, file.path(datadir, "outdir/worldbank/poor_ppp19_est.tif"), 
             gdal=c("COMPRESS=LZW"), overwrite = TRUE)
+
+
+snpov <- vect(file.path(datadir, "input/worldbank/global_subnational_poverty_nov2018/global_poverty_nov2018.shp"))
+cgv <- vect(file.path(datadir, "input/boundary/country_farming_system_cg_regions.shp"))
+v <- cgv[cgv$ISO_A3 == "GHA",]
+
+r <- rast(file.path(datadir, "outdir/worldbank/poor_ppp19_nov18.tif"))
+r <- crop(r, v)
+r <- mask(r, v)
+sv <- crop(snpov, v)
+plot(sv,"poor_ppp19", col = heat.colors(20))
+
+plot(r, col = rev(heat.colors(10)))
+plot(v, add = T)
+text(v, v$frmng_s, cex = 1.25)

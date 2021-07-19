@@ -1,3 +1,100 @@
+# # individual 
+# burl <- "https://data.worldpop.org/GIS/Population/Global_2000_2020_1km_UNadj"
+# year <- 2020
+# u <- file.path(burl, year, iso, paste0(tolower(iso), "_ppp_", year, "_1km_Aggregated_UNadj.tif"))
+# download.file(u, destfile = basename(u), mode = "wb")
+
+library(terra)
+
+getRuralPopRaster <- function(i, wb, datadir, pop, retry = F){
+  d <- wb[i,]
+  iso <- d$ISO_A3
+  
+  oname <- file.path(datadir, "outdir/rural_population", paste0(iso, "_rural_pop_1km.tif"))
+  if(retry) unlink(oname)
+  
+  if(!file.exists(oname)){
+    cat("Processing", iso, "\n")
+    th <- d$rural_pop_pct_mean/100
+    v <- vect(raster::getData("GADM", country = iso, level = 0, path = file.path(datadir, "input/boundary/country")))
+    r <- crop(pop, v)
+    r <- mask(r, v)
+    
+    d$total_population_est <- as.numeric(global(r, sum, na.rm = T))
+    
+    # frequency table for each population density class
+    f <- data.frame(freq(r))
+    f$pop <-f$value*f$count
+    f$pct <- f$pop/sum(f$pop)
+    f$cumsum <- cumsum(f$pct)
+    f <- f[order(f$cumsum, decreasing = TRUE),]
+    pth <- f$value[DescTools::Closest(f$cumsum, th, which = TRUE, na.rm = TRUE)]
+    
+    # mask all values more than the threshold
+    r[r > pth] <- NA
+    d$rural_population_limit <- pth
+    d$rural_population_est_1km <- as.numeric(global(r, sum, na.rm = T))
+    
+    dir.create(dirname(oname), F, T)
+    writeRaster(r, filename = oname,
+                overwrite = TRUE, gdal=c("COMPRESS=LZW"))
+    rx <- aggregate(r, fact = 10, fun = "sum", na.rm = TRUE, filename = gsub("_1km.tif","_10km.tif",oname),
+                    overwrite = TRUE, gdal=c("COMPRESS=LZW"))
+    d$rural_population_est_10km <- as.numeric(global(rx, sum, na.rm = T))
+    return(d) 
+  }
+} 
+
+datadir <- "G:\\My Drive\\work\\ciat\\eia\\analysis"
+
+pop <- rast(file.path(datadir, "input/worldpop/ppp_2020_1km_Aggregated.tif"))
+
+# worldbank rural population %
+# wbp <- "https://api.worldbank.org/v2/en/indicator/SP.RUR.TOTL.ZS?downloadformat=csv"
+# download.file(wbp, destfile = file.path(datadir, "input/worldbank/worldbank_rpop.zip"), mode = "wb")
+# unzip(file.path(datadir, "input/worldbank/worldbank_rpop.zip"), exdir = file.path(datadir, "input/worldbank/rpop"))
+wb <- read.csv(file.path(datadir, "input/worldbank/rpop/API_SP.RUR.TOTL.ZS_DS2_en_csv_v2_2446153.csv"), skip = 4)
+# mean of last 5 years for missing %
+x <- rowMeans(wb[,paste0("X",2015:2019)], na.rm = TRUE)
+x <- ifelse(is.na(x), rowMeans(wb[,paste0("X",2010:2019)], na.rm = TRUE), x)
+wb$rural_pop_pct_mean <- x
+wb <- wb[, c("Country.Name","Country.Code","Indicator.Name", "rural_pop_pct_mean")]
+names(wb)[2] <- "ISO_A3"
+wb <- wb[complete.cases(wb),]
+wb <- wb[wb$rural_pop_pct_mean > 0, ]
+
+# modified list of LMIC countires
+# tiso <- c('AFG','AGO','ARM','AZE','BDI','BEN','BFA','BGD','BLZ','BOL','BTN','BWA','CAF','CHN','CIV','CMR','COD','COG','COL','CRI','CUB',
+#           'DMA','DOM','DZA','ECU','EGY','ERI','ETH','GAB','GHA','GIN','GMB','GNB','GRD','GTM','GUY','HND','HTI','IDN','IND','IRN','IRQ',
+#           'JAM','KAZ','KEN','KGZ','KHM','LAO','LBN','LBR','LBY','LKA','LSO','MAR','MDG','MEX','MLI','MMR','MOZ','MRT','MWI','MYS',
+#           'NAM','NER','NGA','NIC','NPL','PAK','PAN','PER','PHL','PNG','PRY','PSE','RWA','SDN','SEN','SLB','SLE','SLV','SOM','SSD','SUR','SWZ','SYR',
+#           'TCD','TGO','THA','TJK','TKM','TLS','TUN','TZA','UGA','UZB','VCT','VEN','VNM','YEM','ZMB','ZWE', 'ZAF')
+# 
+# wb <- wb[wb$ISO_A3 %in% tiso, ]
+cc <- raster::ccodes()
+wb <- wb[wb$ISO_A3 %in% cc$ISO3, ]
+
+dd <- lapply(1:nrow(wb), getRuralPopRaster, wb, datadir, pop, retry = T)
+# create table with the estimated population
+dd <- do.call(rbind, dd)
+write.csv(dd, file.path(datadir, "outdir/rural_population/global_rural_pop_summary.csv"), row.names = FALSE)
+
+##################################################################################################
+# convert to global 10km
+rl <- list.files(file.path(datadir, "outdir/rural_population"),  
+                 pattern = "_rural_pop_10km.tif", full.names = TRUE)
+# rr <- lapply(rl, rast)
+# rsrc <- src(rr)
+# 
+# m <- mosaic(rsrc, filename = paste0(datadir, "/outdir/rural_population/global_rural_pop_10km.tif"),
+#             gdal=c("COMPRESS=LZW"), overwrite = TRUE)
+
+# mosaic/merge keeps failing
+vm <- vrt(rl, filename = paste0(datadir, "/outdir/rural_population/global_rural_pop_10km.vrt"),
+          overwrite = TRUE)
+
+###############################################################################################################
+
 # worldpop
 library(terra)
 
@@ -53,92 +150,4 @@ vd <- do.call(c, vv)
 sfd <- sf::st_as_sf(as.data.frame(vd, geom=TRUE), wkt="geometry", crs=crs(vd))
 # sf::st_write(sfd, "app/level1_KPI.geojson")
 saveRDS(sfd, "app/level1_KPI.rds" )
-
-
-# # individual 
-# burl <- "https://data.worldpop.org/GIS/Population/Global_2000_2020_1km_UNadj"
-# year <- 2020
-# u <- file.path(burl, year, iso, paste0(tolower(iso), "_ppp_", year, "_1km_Aggregated_UNadj.tif"))
-# download.file(u, destfile = basename(u), mode = "wb")
-
-library(terra)
-
-getRuralPopRaster <- function(i, wb, datadir, pop){
-  d <- wb[i,]
-  iso <- d$ISO_A3
-  
-  cat("Processing", iso, "\n")
-  th <- d$rural_pop_pct_mean/100
-  v <- vect(raster::getData("GADM", country = iso, level = 0, path = file.path(datadir, "input/boundary/country")))
-  r <- crop(pop, v)
-  r <- mask(r, v)
-  
-  d$total_population_est <- as.numeric(global(r, sum, na.rm = T))
-  
-  # frequency table for each population density class
-  f <- data.frame(freq(r))
-  f$pop <-f$value*f$count
-  f$pct <- f$pop/sum(f$pop)
-  f$cumsum <- cumsum(f$pct)
-  f <- f[order(f$cumsum, decreasing = TRUE),]
-  pth <- f$value[DescTools::Closest(f$cumsum, th, which = TRUE, na.rm = TRUE)]
-  
-  # mask all values more than the thresold
-  r[r > pth] <- NA
-  d$rural_population_limit <- pth
-  d$rural_population_est_1km <- as.numeric(global(r, sum, na.rm = T))
-  
-  oname <- file.path(datadir, "outdir/rural_population", paste0(iso, "_rural_pop_1km.tif"))
-  dir.create(dirname(oname), F, T)
-  writeRaster(r, filename = oname,
-              overwrite = TRUE, gdal=c("COMPRESS=LZW"))
-  rx <- aggregate(r, fact = 10, fun = "sum", na.rm = TRUE, filename = gsub("_1km.tif","_10km.tif",oname),
-                  overwrite = TRUE, gdal=c("COMPRESS=LZW"))
-  d$rural_population_est_10km <- as.numeric(global(rx, sum, na.rm = T))
-  return(d)
-} 
-
-datadir <- "G:\\My Drive\\work\\ciat\\eia\\analysis"
-
-pop <- rast(file.path(datadir, "input/worldpop/ppp_2020_1km_Aggregated.tif"))
-
-# worldbank rural population %
-# wbp <- "https://api.worldbank.org/v2/en/indicator/SP.RUR.TOTL.ZS?downloadformat=csv"
-# download.file(wbp, destfile = file.path(datadir, "input/worldbank/worldbank_rpop.zip"), mode = "wb")
-# unzip(file.path(datadir, "input/worldbank/worldbank_rpop.zip"), exdir = file.path(datadir, "input/worldbank/rpop"))
-wb <- read.csv(file.path(datadir, "input/worldbank/rpop/API_SP.RUR.TOTL.ZS_DS2_en_csv_v2_2446153.csv"), skip = 4)
-# mean of last 5 years for missing %
-x <- rowMeans(wb[,paste0("X",2015:2019)], na.rm = TRUE)
-x <- ifelse(is.na(x), rowMeans(wb[,paste0("X",2010:2019)], na.rm = TRUE), x)
-wb$rural_pop_pct_mean <- x
-wb <- wb[, c("Country.Name","Country.Code","Indicator.Name", "rural_pop_pct_mean")]
-names(wb)[2] <- "ISO_A3"
-
-# modified list of LMIC countires
-tiso <- c('AFG','AGO','ARM','AZE','BDI','BEN','BFA','BGD','BLZ','BOL','BTN','BWA','CAF','CHN','CIV','CMR','COD','COG','COL','CRI','CUB',
-          'DMA','DOM','DZA','ECU','EGY','ERI','ETH','GAB','GHA','GIN','GMB','GNB','GRD','GTM','GUY','HND','HTI','IDN','IND','IRN','IRQ',
-          'JAM','KAZ','KEN','KGZ','KHM','LAO','LBN','LBR','LBY','LKA','LSO','MAR','MDG','MEX','MLI','MMR','MOZ','MRT','MWI','MYS',
-          'NAM','NER','NGA','NIC','NPL','PAK','PAN','PER','PHL','PNG','PRY','PSE','RWA','SDN','SEN','SLB','SLE','SLV','SOM','SSD','SUR','SWZ','SYR',
-          'TCD','TGO','THA','TJK','TKM','TLS','TUN','TZA','UGA','UZB','VCT','VEN','VNM','YEM','ZMB','ZWE')
-
-wb <- wb[wb$ISO_A3 %in% tiso, ]
-
-dd <- lapply(1:nrow(wb), getRuralPopRaster, wb, datadir, pop)
-# create table with the estimated population
-dd <- do.call(rbind, dd)
-write.csv(dd, file.path(datadir, "outdir/rural_population/global_rural_pop_summary.csv"), row.names = FALSE)
-
-##################################################################################################
-# convert to global 10km
-rl <- list.files(file.path(datadir, "outdir/rural_population"),  
-                 pattern = "_rural_pop_10km.tif", full.names = TRUE)
-# rr <- lapply(rl, rast)
-# rsrc <- src(rr)
-# 
-# m <- mosaic(rsrc, filename = paste0(datadir, "/outdir/rural_population/global_rural_pop_10km.tif"),
-#             gdal=c("COMPRESS=LZW"), overwrite = TRUE)
-
-# mosaic/merge keeps failing
-vm <- vrt(rl, filename = paste0(datadir, "/outdir/rural_population/global_rural_pop_10km.vrt"),
-          overwrite = TRUE)
 
