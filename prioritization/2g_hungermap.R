@@ -6,7 +6,7 @@ library(tidyverse)
 
 # input
 datadir <- "G:/My Drive/work/ciat/eia/analysis"
-
+datadir <- "/cluster01/workspace/common"
 
 ####################################################################################################################################
 # undernourishment
@@ -64,6 +64,7 @@ cleanScores <- function(f, cb){
   return(vv)
 }
 
+# uu <- list.files(file.path(datadir, "input/wfp/hungermap/adm1data"), pattern = ".json", full.names = TRUE)
 uu <- list.files(file.path(datadir, "input/wfp/hungermap/adm1data"), pattern = ".json", full.names = TRUE)
 # 276 is strange; a straight line
 uu <- grep(276, uu, val = T, invert = T)
