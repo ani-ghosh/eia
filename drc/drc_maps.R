@@ -20,6 +20,9 @@ vdir <- "G:/My Drive/work/ciat/cg-prioritization"
 # this after combining Central American Dry Corridor with Dixon maps
 cgv <- shapefile(file.path(datadir, "input/boundary/country_farming_system_cg_regions.shp"))
 
+# country
+iso <- "COD"
+
 # bit of cleaning
 cgv$FORMAL_ <- NULL
 cgv$ECONOMY <- NULL
@@ -31,7 +34,6 @@ cgv$farming_system <- gsub("[[:digit:]]+","", cgv$farming_system)
 cgv$farming_system <- gsub("\\.","", cgv$farming_system)
 cgv$farming_system <- trimws(cgv$farming_system)
 
-iso <- "COD"
 fs <- cgv[cgv$ISO_A3 %in% iso,]
 
 # country boundary
@@ -130,5 +132,195 @@ tmap_save(p3m, filename =  file.path(datadir, "DRC_aez_territory.png"),
           width = 5, height = 5, dpi = 300)
 
 
+# plot for rural pop
+p1m <- p1 + om +
+  tm_layout(legend.position = c("left", "bottom"), legend.text.size = 0.8,
+            inner.margins=c(0.1,0.15,0.05,0.03))
 
+tmap_save(p1m, filename =  file.path(datadir, "DRC_farming_system_territory.png"),
+          width = 5, height = 5, dpi = 300)
+
+
+# distance to market
+rr <- rast(file.path(datadir, "outdir/all_raster/KPI_global_raster_10km.tif"))
+rr <- crop(rr, vect(v1))
+rr <- terra::mask(rr, vect(v1))
+r1 <- subset(rr, "rural_population_sum")
+r1 <- r1/(10*10) # convert to 1 sqkm
+r1 <- raster(r1)
+
+pr1 <- tm_shape(r1) +
+  tm_raster(style = "fisher", n = 6, title = "Rural Population Density/km^2",
+            palette = colorRampPalette(c("darkolivegreen4","yellow", "brown"))(12))
+
+# access
+r2 <- subset(rr, "2015_accessibility_to_cities_v1.0")
+r2 <- round(r2, 1)
+r2 <- raster(r2)
+pr2 <- tm_shape(r2) +
+  tm_raster(style = "jenks", n = 5, title = "Travel time to cities \n(in hours)",
+            palette = get_brewer_pal("BuPu", n = 5))
+
+pr2
+# ag land
+cc <- subset(rr, c("cropland_fraction"))
+ca <- app(cc, "prod")
+plot(cc)
+
+# yield 
+ff <- list.files(file.path(datadir, "input/mapspam/spam2017v2r1_ssa_yield.geotiff"),
+                 pattern = "*_A.tif", full.names = TRUE)
+
+# major crops of DRC
+crps <- c("maiz", "cass", "sugc")
+
+############################################################################################################
 # other summary variables
+library(terra)
+library(sf)
+library(raster)
+
+# input
+datadir <- "G:/My Drive/work/ciat/eia/analysis"
+iso <- "COD"
+cgv <- vect(raster::getData("GADM", country = iso, level = 2, 
+                            path = file.path(datadir, "input/boundary/country")))
+cgv <- cgv[cgv$TYPE_2 == "Territoire",]
+####################################################################################################################################
+# level 1
+# stunting
+s <- rast(file.path(datadir, 
+                    "input/ihme/child_growth_failure/IHME_LMIC_CGF_2000_2017_STUNTING_PREV_MEAN_2017_Y2020M01D08.TIF"))
+
+# under 5 mortality
+m <- rast(file.path(datadir, 
+                    "input/ihme/infant_mortality/IHME_LMICS_U5M_2000_2017_Q_UNDER5_MEAN/IHME_LMICS_U5M_2000_2017_Q_UNDER5_MEAN_Y2019M10D16.TIF"))
+
+# extract only for 2017
+m <- m[[nlyr(m)]]
+s <- crop(s, m)
+sm <- c(s, m)
+
+# extract indicators
+health <- terra::extract(sm, cgv, fun = mean, na.rm = TRUE)
+health$ID <- NULL
+health <- round(health*100)
+names(health) <- c("under5_stunting_prevalence_2017(percentage)", "under5_mortality_rate_2017(percentage)")
+
+##############################
+# rural population
+rpop <- rast(paste0(datadir, "/outdir/rural_population/global_rural_pop_10km.vrt"))
+pop <- terra::extract(rpop, cgv, fun = sum, na.rm = TRUE)
+pop$ID <- NULL
+pop <- round(pop)
+names(pop) <- "rural_population"
+
+# other raster
+rr <- rast(file.path(datadir, "outdir/all_raster/KPI_global_raster_10km.tif"))
+# r <- subset(rr, c("poverty_avg5yr_imputed","povmap_global_subnational_infant_mortality_rates_v2_01"))
+# cropland fraction and area
+cc <- subset(rr, c("cropland_fraction", "area_sqkm"))
+ca <- app(cc, "prod")
+cropland <- terra::extract(ca, cgv, fun = sum, na.rm = TRUE)
+cropland$ID <- NULL
+# cropland <- cropland*100/100 # diving by 100 because the cropland_fraction is in %, then multiplying 100 to ha
+names(cropland) <- "cropland_total(ha)"
+
+cropland_percapita <- unname(round(cropland/pop, 2))
+names(cropland_percapita) <- "cropland_percapita(ha/person)"
+
+cropland_perfamily <- cropland_percapita*6
+names(cropland_perfamily) <- "cropland_perfamily(ha/family)"
+
+# cropland_percapita <- ifelse(!is.finite(cropland_percapita), NA, cropland_percapita)
+
+# poverty
+povr <- rast(file.path(datadir, "outdir/worldbank/poor_ppp19_nov18.tif"))
+poverty <- terra::extract(povr, cgv, fun = mean, na.rm = TRUE)
+poverty$ID <- NULL
+names(poverty) <- "poverty(percentage_subnational_ppp190)"
+
+
+level1 <- data.frame(pop, round(cropland), 
+                     cropland_percapita,
+                     cropland_perfamily,
+                     round(poverty),
+                     health, check.names = FALSE)
+
+level1[sapply(level1, is.nan)] <- NA
+level1 <- round(level1, 2)
+# names(level1) <- paste0("level1_", names(level1))
+
+######################################################################################################################
+# level 2
+# production trends
+yld <- subset(rr, grep("yield", names(rr), value = TRUE))
+yldf <- terra::extract(yld, cgv, fun = mean, na.rm = TRUE)
+yldf$ID <- NULL
+level2 <- round(yldf, 2)
+level2[sapply(level2, is.nan)] <- NA
+
+######################################################################################################################
+# level 3
+# Travel to the nearest market from any cropland pixel
+cf <- subset(rr, "cropland_fraction")
+acc <- subset(rr, "2015_accessibility_to_cities_v1.0")
+acc <- mask(acc, cf, maskvalues = 0)
+
+acs <- terra::extract(acc, cgv, fun = mean, na.rm = TRUE)
+acs$ID <- NULL
+names(acs) <- "travel_time_market(hours)"
+
+# access to network
+# only interested in networks where there is population
+ntw <- subset(rr, "network_coverage")
+# convert all netwrok to binary class
+ntwb <- ntw
+ntwb[ntwb > 0] <- 1
+# ntwpop <- c(ntwb, rpop)
+# ntwpop <- extend(ntwpop, rr)
+
+# % of rural population having access to network
+pctUnderNetwork <- function(i, cgv, ntwb, rpop){
+  cat("Processing", i, "of", nrow(cgv), "\n")
+  v <- cgv[i,]
+  y1 <- terra::crop(ntwb, v)
+  y1 <- terra::mask(y1, v)
+  y2 <- terra::crop(rpop, v)
+  y2 <- terra::mask(y2, v)
+  y1 <- resample(y1, y2)
+  yy <- c(y1, y2)
+  yd <- app(yy, "prod") # total population with network
+  ntwf <- as.numeric(global(yd, sum, na.rm = T))/as.numeric(global(y2, sum, na.rm = T)) # fraction of population with network
+  return(round(ntwf,4)*100)
+}
+
+ntwstat <- sapply(1:nrow(cgv), pctUnderNetwork, cgv, ntwb, rpop)
+ntwstat <- data.frame(pct_of_rural_pop_internet_access = ntwstat)
+# ntwstat <- data.frame(network_access_pct = ntwstat)
+
+# occurrences of conflicts in the last 5 years
+conf <- rast(file.path(datadir, "outdir/all_raster/lmic_conflicts_2016-21.tif"))
+# now only focusing on the total number of conflicts in the rural areas
+conf <- terra::crop(conf, rpop)
+conf <- resample(conf, rpop)
+conf <- terra::mask(conf, rpop)
+confs <- terra::extract(conf[[1:2]], cgv, fun = sum, na.rm = TRUE)
+confs$ID <- NULL
+names(confs) <- c("total_conflict_incidents_2016-21", "total_conflict_deaths_2016-21")
+
+level3 <- data.frame(acs, ntwstat, confs, check.names = FALSE)
+level3[sapply(level3, is.nan)] <- NA
+level3 <- round(level3, 2)
+
+
+#########################################################################################################
+# combine information
+# merge all
+kpi <- cbind(cgv[, c("NAME_1", "NAME_2")], level1, level2, level3)
+
+kpi <- as.data.frame(kpi)
+kpi$`conflicts per 100,000 rural person` <- round(100000*kpi$`total_conflict_incidents_2016-21`/kpi$rural_population)
+kpi$`conflicts_deaths per 100,000 rural person` <- round(100000*kpi$`total_conflict_deaths_2016-21`/kpi$rural_population)
+
+write.csv(kpi,  file.path(datadir, "DRC_summary_stat_territory.csv"), row.names = FALSE)
