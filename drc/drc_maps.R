@@ -36,10 +36,10 @@ cgv$farming_system <- trimws(cgv$farming_system)
 fs <- cgv[cgv$ISO_A3 %in% iso,]
 
 # country boundary
-v1 <- raster::getData("GADM", country = iso, level = 1,
-                      path = file.path(datadir, "input/boundary/country"))
+v1 <- raster::getData("GADM", country = iso, level = 1, 
+                     path = file.path(datadir, "input/boundary/country"))
 
-v <- raster::getData("GADM", country = iso, level = 2,
+v <- raster::getData("GADM", country = iso, level = 2, 
                      path = file.path(datadir, "input/boundary/country"))
 
 vt <- v[v$TYPE_2 == "Territoire",]
@@ -48,14 +48,14 @@ vt$legend <- paste(vt$ID, ":", vt$NAME_2)
 
 # # read the list of 145 territories table from wikipedia
 # url <- "https://en.wikipedia.org/wiki/List_of_territories_of_the_Democratic_Republic_of_the_Congo"
-#
-# lt <- read_html(url) %>%
-#   html_node(xpath = "//*[@id='mw-content-text']/div[1]/table[2]") %>%
+# 
+# lt <- read_html(url) %>% 
+#   html_node(xpath = "//*[@id='mw-content-text']/div[1]/table[2]") %>% 
 #   html_table(fill = T)
 # lt <- lt[1:145,]
 
 # cpt <- shapefile("G:/My Drive/work/ciat/eia/DRC/data/drc/capitals/capitals.shp")
-cpt <- st_read("G:/My Drive/work/ciat/eia/DRC/data/drc/capitals/capitals.shp",
+cpt <- st_read("G:/My Drive/work/ciat/eia/DRC/data/drc/capitals/capitals.shp", 
                options = "ENCODING=UTF8")
 
 pname <- st_centroid(st_as_sf(v1))
@@ -63,7 +63,7 @@ pname$ymod <- 0
 pname$ymod[pname$NAME_1 == "Kasaï-Central"] <- 0.5
 pname$ymod[pname$NAME_1 == "Kasaï-Oriental"] <- -0.5
 pname$ymod[pname$NAME_1 == "Lomami"] <- 0.5
-
+  
 om <- tm_shape(v1) +
   tm_borders(lwd = 2, col = "#feb24c", lty = "solid") +
   tm_shape(vt) +
@@ -76,36 +76,14 @@ om <- tm_shape(v1) +
   tm_dots(col="Capital", palette = "red", size = 0.1, shape = 16, legend.show = FALSE) +
   tm_add_legend("line", col = c("#feb24c", "#bd0026"), lwd = c(2, 0.5),
                 lty = c("solid", "solid"), labels = c("Province", "Terriotry"),
-                title = "Administrative")  +
+                title = "Administrative")  + 
   tm_scale_bar(width = 0.4, lwd = 0.3, size = 0.5) +
   tm_compass(type = "arrow", size = 2, position = c("left", "top"))
 
 
-# shapes priority
-shd <- read.csv("G:/My Drive/work/ciat/eia/DRC/DRC_summary_stat_territory - reorganized - V2.csv")
-vshd <- merge(vt, shd)
-vshd$Tier.Nr[vshd$Tier.Nr == "none"] <- 0
-vshd$Tier.Nr[vshd$NAME_1 == "Sankuru"] <- 3
-
-vsm <- tm_shape(vshd) +
-  tm_polygons(col = "Tier.Nr", palette = c("#ffffff", rev(c("#ccece6", "#66c2a4", "#238b45"))),
-              border.alpha = 0, legend.show = FALSE) +
-  tm_add_legend(type = "fill", 
-                labels = c("Tier 1", "Tier 2", "Tier 3", "No"),
-                col = rev(c("#ffffff", "#ccece6", "#66c2a4", "#238b45")), title = "Priority")
-               
-vsm <- vsm + om +
-  tm_layout(legend.position = c("left", "bottom"), legend.text.size = 0.8,
-            inner.margins=c(0.1,0.15,0.05,0.03))
-
-tmap_save(vsm, filename =  file.path(datadir, "DRC_priority_territory.png"),
-          width = 5, height = 5, dpi = 300)
-
-
-# farming system
-p1 <- tm_shape(fs) +
+p1 <- tm_shape(fs) + 
   tm_polygons(col = "farming_system", palette = c("#1f78b4", "#fdbf6f", "#33a02c", "#8dd3c7", "#ffff33", "#e5d8bd"),
-              title = "Farming System", border.alpha = 0)
+              title = "Farming System", border.alpha = 0) 
 p1m <- p1 + om +
   tm_layout(legend.position = c("left", "bottom"), legend.text.size = 0.8,
             inner.margins=c(0.1,0.15,0.05,0.03))
@@ -116,7 +94,7 @@ tmap_save(p1m, filename =  file.path(datadir, "DRC_farming_system_territory.png"
 
 # soil
 soil <- st_read("G:/My Drive/work/ciat/eia/DRC/data/drc/fao_soils/fao_soils.shp")
-p2 <- tm_shape(soil) +
+p2 <- tm_shape(soil) + 
   tm_polygons(col = "MAJOR__SOI", palette = c(get_brewer_pal("Pastel1", n = 11), "darkblue"),
               title = "Soil Type", border.alpha = 0) +
   tm_layout(legend.position = c("left", "bottom"), legend.text.size = 0.8,
@@ -131,9 +109,9 @@ dd <- jsonlite::fromJSON("https://gaez-services.fao.org/server/rest/services/LR/
 ds <- as.data.frame(dd$layers$legend)
 ds <- data.frame(pixelvalue = c(1:(nrow(ds)-1)), classname = ds$label[-1])
 
-# v0 <- raster::getData("GADM", country = iso, level = 0,
+# v0 <- raster::getData("GADM", country = iso, level = 0, 
 #                             path = file.path(datadir, "input/boundary/country"), type = "sf")
-#
+# 
 # aez <- read_stars("G:/My Drive/work/ciat/eia/DRC/data/AEZ16 r2.0 - TIF/AEZ16_CLAS--SSA.tif")
 # saez <- aez[v0]
 # droplevels(saez)
@@ -149,15 +127,15 @@ dsx <- ds[ds$pixelvalue %in% x,]
 # levels(r) <- rat
 
 p3 <- tm_shape(r) +
-  tm_raster(style = "cat",
+  tm_raster(style = "cat", 
             palette = c(get_brewer_pal("Pastel1", n = 10), "#253494"), labels = dsx$classname,
             title = "AEZ") +
   tm_layout(legend.position = c("left", "bottom"), legend.text.size = 0.5,
-            inner.margins=c(0.15,0.3,0.05,0.03)) +
+          inner.margins=c(0.15,0.3,0.05,0.03)) +
   tm_credits("Source: Global Agro-Ecological Zoning version 4 (GAEZ v4) (https://gaez.fao.org)",
-             size = 0.5, position = c("right", "bottom"))
+               size = 0.5, position = c("right", "bottom"))
 
-p3m <- p3 + om
+p3m <- p3 + om 
 tmap_save(p3m, filename =  file.path(datadir, "DRC_aez_territory.png"),
           width = 5, height = 5, dpi = 300)
 
@@ -174,7 +152,7 @@ om1 <- tm_shape(v1) +
   tm_dots(col="Capital", palette = "red", size = 0.1, shape = 16, legend.show = FALSE) +
   tm_add_legend("line", col = c("#feb24c", "#bd0026"), lwd = c(1.25, 0.5),
                 lty = c("solid", "solid"), labels = c("Province", "Terriotry"),
-                title = "Administrative")  +
+                title = "Administrative")  + 
   tm_scale_bar(width = 0.4, lwd = 0.3, size = 0.5) +
   tm_compass(type = "arrow", size = 2, position = c("left", "top"))
 
@@ -183,8 +161,8 @@ rpop <- raster(paste0(datadir, "/outdir/rural_population/COD_rural_pop_10km.tif"
 srpop <- extract(rpop, vt, fun = sum, na.rm = TRUE, sp = TRUE)
 
 n <- 5
-pop <- tm_shape(srpop) +
-  tm_polygons(col = "COD_rural_pop_10km", style = "jenks", n = n,
+pop <- tm_shape(srpop) + 
+  tm_polygons(col = "COD_rural_pop_10km", style = "jenks", n = n, 
               palette = get_brewer_pal("Reds", n),
               title = "Rural population", border.alpha = 0) +
   tm_layout(legend.position = c("left", "bottom"), legend.text.size = 0.8,
@@ -224,8 +202,8 @@ names(ca) <- "cropland"
 cropland <- extract(ca, vt, fun = sum, na.rm = TRUE, sp = TRUE)
 
 n <- 5
-crp <- tm_shape(cropland) +
-  tm_polygons(col = "cropland", style = "jenks", n = n,
+crp <- tm_shape(cropland) + 
+  tm_polygons(col = "cropland", style = "jenks", n = n, 
               palette = get_brewer_pal("Greens", n),
               title = "Cropland \n(in ha)", border.alpha = 0) +
   tm_layout(legend.position = c("left", "bottom"), legend.text.size = 0.8,
@@ -235,33 +213,12 @@ tmap_save(crp, filename =  file.path(datadir, "DRC_cropland_area_territory.png")
           width = 5, height = 5, dpi = 300)
 
 
-# yield
+# yield 
 ff <- list.files(file.path(datadir, "input/mapspam/spam2017v2r1_ssa_yield.geotiff"),
                  pattern = "*_A.tif", full.names = TRUE)
 
 # major crops of DRC
 crps <- c("maiz", "cass", "sugc")
-f <- ff[grep(paste0(crps, collapse="|"), tolower(ff))]
-yld <- stack(f)
-names(yld) <- c("cassava", "maize", "sugarcane")
-
-syld <- extract(yld, vt, fun = mean, na.rm = TRUE, sp = TRUE)
-
-syld <- syld[,c("cassava", "maize", "sugarcane")]
-syld@data <- round(syld@data*0.001,2) # kg/ha to ton/ha
-
-n <- 5
-yldm <- tm_shape(syld) +
-  tm_polygons(col = c("cassava", "maize", "sugarcane"), style = "jenks", n = n,
-              palette = get_brewer_pal("Greens", n),
-              title = "Yield \n(ton/ha)", border.alpha = 0) +
-  tm_layout(legend.position = c("left", "bottom"), legend.text.size = 0.8,
-            main.title = "Crop yield", main.title.position = "center",
-            title = c("cassava", "maize", "sugarcane"),
-            inner.margins=c(0.1,0.2,0.05,0.03))
-yldm <- yldm + om1
-tmap_save(yldm, filename =  file.path(datadir, "DRC_yield_primary_crops_territory.png"),
-          width = 15, height = 5, dpi = 300)
 
 ############################################################################################################
 # other summary variables
@@ -272,17 +229,17 @@ library(raster)
 # input
 datadir <- "G:/My Drive/work/ciat/eia/analysis"
 iso <- "COD"
-cgv <- vect(raster::getData("GADM", country = iso, level = 2,
+cgv <- vect(raster::getData("GADM", country = iso, level = 2, 
                             path = file.path(datadir, "input/boundary/country")))
 cgv <- cgv[cgv$TYPE_2 == "Territoire",]
 ####################################################################################################################################
 # level 1
 # stunting
-s <- rast(file.path(datadir,
+s <- rast(file.path(datadir, 
                     "input/ihme/child_growth_failure/IHME_LMIC_CGF_2000_2017_STUNTING_PREV_MEAN_2017_Y2020M01D08.TIF"))
 
 # under 5 mortality
-m <- rast(file.path(datadir,
+m <- rast(file.path(datadir, 
                     "input/ihme/infant_mortality/IHME_LMICS_U5M_2000_2017_Q_UNDER5_MEAN/IHME_LMICS_U5M_2000_2017_Q_UNDER5_MEAN_Y2019M10D16.TIF"))
 
 # extract only for 2017
@@ -330,7 +287,7 @@ poverty$ID <- NULL
 names(poverty) <- "poverty(percentage_subnational_ppp190)"
 
 
-level1 <- data.frame(pop, round(cropland),
+level1 <- data.frame(pop, round(cropland), 
                      cropland_percapita,
                      cropland_perfamily,
                      round(poverty),
